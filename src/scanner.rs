@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::file_info::FileEntry;
+use crate::file_info::{FileEntry, FileEntryParams};
 
 /// Quét thư mục và trả về danh sách FileEntry
 pub fn scan_directory(path: &Path) -> Vec<FileEntry> {
@@ -37,13 +37,19 @@ pub fn scan_directory(path: &Path) -> Vec<FileEntry> {
         let extension = if is_dir {
             None
         } else {
-            path.extension()
-                .map(|e| e.to_string_lossy().to_string())
+            path.extension().map(|e| e.to_string_lossy().to_string())
         };
 
-        let mut file_entry = FileEntry::new(
-            name, path.clone(), is_dir, size, created, modified, accessed, extension,
-        );
+        let mut file_entry = FileEntry::new(FileEntryParams {
+            name,
+            path: path.clone(),
+            is_dir,
+            size,
+            created,
+            modified,
+            accessed,
+            extension,
+        });
 
         // Quét đệ quy cho thư mục con
         if is_dir {

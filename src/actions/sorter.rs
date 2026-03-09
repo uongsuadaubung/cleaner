@@ -10,7 +10,6 @@ pub struct SortResult {
 }
 
 #[allow(dead_code)]
-#[allow(dead_code)]
 /// Danh sách các thư mục đích sẽ được tạo khi sắp xếp
 const SORT_CATEGORIES: &[FileCategory] = &[
     FileCategory::Document,
@@ -22,7 +21,6 @@ const SORT_CATEGORIES: &[FileCategory] = &[
     FileCategory::Code,
     FileCategory::Other,
 ];
-
 
 /// Tạo tên file không trùng lặp (thêm suffix _1, _2...)
 fn get_unique_path(target_dir: &Path, file_name: &str) -> PathBuf {
@@ -58,7 +56,6 @@ pub fn sort_files(entries: &[FileEntry], base_path: &Path) -> SortResult {
         failed: Vec::new(),
     };
 
-
     for entry in entries {
         // Bỏ qua thư mục và các thư mục phân loại đã tạo
         if entry.is_dir {
@@ -71,20 +68,23 @@ pub fn sort_files(entries: &[FileEntry], base_path: &Path) -> SortResult {
         }
 
         let target_dir = base_path.join(target_folder);
-        
+
         // Kiểm tra nếu file đã nằm đúng trong thư mục đích rồi thì bỏ qua
-        if let Some(parent) = entry.path.parent() {
-            if parent == target_dir {
-                continue;
-            }
+        if let Some(parent) = entry.path.parent()
+            && parent == target_dir
+        {
+            continue;
         }
 
         // Tạo thư mục đích nếu chưa tồn tại (chỉ tạo khi có file thuộc loại này)
-        if !target_dir.exists() {
-            if let Err(e) = fs::create_dir_all(&target_dir) {
-                result.failed.push((target_folder.to_string(), format!("Không thể tạo thư mục: {}", e)));
-                continue;
-            }
+        if !target_dir.exists()
+            && let Err(e) = fs::create_dir_all(&target_dir)
+        {
+            result.failed.push((
+                target_folder.to_string(),
+                format!("Không thể tạo thư mục: {}", e),
+            ));
+            continue;
         }
 
         let target_path = get_unique_path(&target_dir, &entry.name);

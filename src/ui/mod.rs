@@ -1,3 +1,3 @@
-pub mod dialogs;
-pub mod toolbar;
-pub mod tree_view;
+pub mod colors;
+pub mod components;
+pub mod pages;

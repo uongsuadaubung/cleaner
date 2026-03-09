@@ -4,12 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.31"
+eframe = "0.33.3"
 dirs = "6"
 chrono = "0.4"
 trash = "5"
 open = "5"
-rfd = "0.15"
+rfd = "0.17.2"
+sha2 = "0.10.9"
+hex = "0.4.3"
 
 [profile.release]
 opt-level = 3
@@ -19,4 +21,4 @@ panic = 'abort'
 strip = true # Xóa symbols để giảm dung lượng file thực thi (.exe)
 
 [build-dependencies]
-embed-resource = "1.4"
+embed-resource = "3.0.6"

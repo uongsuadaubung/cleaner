@@ -87,17 +87,15 @@ pub fn get_category_from_extension(ext: &str) -> FileCategory {
         "mp3" | "wav" | "flac" | "aac" | "ogg" | "wma" | "m4a" | "opus" => FileCategory::Audio,
 
         // Archives
-        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "iso" | "cab" => {
-            FileCategory::Archive
-        }
+        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "iso" | "cab" => FileCategory::Archive,
 
         // Executables
         "exe" | "msi" | "bat" | "cmd" | "ps1" | "com" | "scr" => FileCategory::Executable,
 
         // Code
-        "rs" | "py" | "js" | "ts" | "html" | "css" | "java" | "cpp" | "c" | "h" | "hpp"
-        | "go" | "rb" | "php" | "swift" | "kt" | "scala" | "lua" | "sh" | "json" | "xml"
-        | "yaml" | "yml" | "toml" | "md" | "sql" => FileCategory::Code,
+        "rs" | "py" | "js" | "ts" | "html" | "css" | "java" | "cpp" | "c" | "h" | "hpp" | "go"
+        | "rb" | "php" | "swift" | "kt" | "scala" | "lua" | "sh" | "json" | "xml" | "yaml"
+        | "yml" | "toml" | "md" | "sql" => FileCategory::Code,
 
         _ => FileCategory::Other,
     }
@@ -119,34 +117,37 @@ pub struct FileEntry {
     pub category: FileCategory,
 }
 
+pub struct FileEntryParams {
+    pub name: String,
+    pub path: PathBuf,
+    pub is_dir: bool,
+    pub size: u64,
+    pub created: Option<SystemTime>,
+    pub modified: Option<SystemTime>,
+    pub accessed: Option<SystemTime>,
+    pub extension: Option<String>,
+}
+
 impl FileEntry {
-    pub fn new(
-        name: String,
-        path: PathBuf,
-        is_dir: bool,
-        size: u64,
-        created: Option<SystemTime>,
-        modified: Option<SystemTime>,
-        accessed: Option<SystemTime>,
-        extension: Option<String>,
-    ) -> Self {
-        let category = if is_dir {
+    pub fn new(params: FileEntryParams) -> Self {
+        let category = if params.is_dir {
             FileCategory::Folder
         } else {
-            extension
+            params
+                .extension
                 .as_deref()
                 .map(get_category_from_extension)
                 .unwrap_or(FileCategory::Other)
         };
 
         Self {
-            name,
-            path,
-            is_dir,
-            size,
-            created,
-            modified,
-            accessed,
+            name: params.name,
+            path: params.path,
+            is_dir: params.is_dir,
+            size: params.size,
+            created: params.created,
+            modified: params.modified,
+            accessed: params.accessed,
             selected: false,
             expanded: false,
             children: Vec::new(),
@@ -186,7 +187,11 @@ impl FileEntry {
         // Nếu là file và được chọn, đếm là 1.
         // Nếu là thư mục không rỗng, ta không đếm bản thân thư mục để tránh đếm trùng với các file con bên trong,
         // trừ khi muốn đếm theo kiểu "số lượng item". Ở đây ta giữ logic đếm file, nhưng bổ sung cho thư mục rỗng.
-        let mut count = if self.selected && (!self.is_dir || self.children.is_empty()) { 1 } else { 0 };
+        let mut count = if self.selected && (!self.is_dir || self.children.is_empty()) {
+            1
+        } else {
+            0
+        };
         for child in &self.children {
             count += child.count_selected();
         }

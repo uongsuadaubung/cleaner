@@ -1,5 +1,7 @@
 fn main() {
     if std::env::var("CARGO_CFG_WINDOWS").is_ok() {
-        embed_resource::compile("assets/resources.rc");
+        embed_resource::compile("assets/resources.rc", embed_resource::NONE)
+            .manifest_optional()
+            .unwrap();
     }
 }

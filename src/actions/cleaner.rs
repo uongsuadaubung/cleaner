@@ -10,7 +10,7 @@ pub struct CleanResult {
 }
 
 /// Chọn tất cả file cũ hơn N ngày (đánh dấu selected)
-pub fn select_old_files(entries: &mut Vec<FileEntry>, days: u64) {
+pub fn select_old_files(entries: &mut [FileEntry], days: u64) {
     for entry in entries.iter_mut() {
         if entry.is_dir {
             select_old_files(&mut entry.children, days);
@@ -93,7 +93,7 @@ fn collect_selected_paths(entries: &[FileEntry]) -> Vec<PathBuf> {
 }
 
 /// Bỏ chọn tất cả file
-pub fn deselect_all(entries: &mut Vec<FileEntry>) {
+pub fn deselect_all(entries: &mut [FileEntry]) {
     for entry in entries.iter_mut() {
         entry.selected = false;
         if entry.is_dir {

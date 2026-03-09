@@ -1,3 +1,4 @@
+use crate::ui::colors;
 use eframe::egui;
 
 /// Khoảng thời gian chọn file cũ
@@ -66,8 +67,7 @@ pub fn render_toolbar(
         ui.spacing_mut().item_spacing.x = 8.0;
 
         // Nút Quét lại
-        let rescan_btn = egui::Button::new("🔄 Quét lại")
-            .min_size(egui::vec2(100.0, 32.0));
+        let rescan_btn = egui::Button::new("🔄 Quét lại").min_size(egui::vec2(100.0, 32.0));
         if ui.add(rescan_btn).clicked() {
             action = ToolbarAction::Rescan;
         }
@@ -80,8 +80,7 @@ pub fn render_toolbar(
         } else {
             "📂 Sắp xếp".to_string()
         };
-        let sort_btn = egui::Button::new(sort_label)
-            .min_size(egui::vec2(100.0, 32.0));
+        let sort_btn = egui::Button::new(sort_label).min_size(egui::vec2(100.0, 32.0));
         if ui.add(sort_btn).clicked() {
             action = ToolbarAction::Sort;
         }
@@ -89,7 +88,6 @@ pub fn render_toolbar(
         ui.separator();
 
         if *show_period_selector {
-            // Dropdown chọn file cũ khi đang kích hoạt
             egui::ComboBox::from_id_salt("old_file_period")
                 .selected_text("🕐 Chọn thời gian...")
                 .width(150.0)
@@ -104,15 +102,13 @@ pub fn render_toolbar(
                         }
                     }
                 });
-            
-            // Nút hủy bỏ việc chọn
+
             if ui.button("❌").on_hover_text("Hủy chọn").clicked() {
                 *show_period_selector = false;
             }
         } else {
-            // Nút Chọn file cũ - hiển thị mặc định
-            let select_old_btn = egui::Button::new("🕐 Chọn file cũ")
-                .min_size(egui::vec2(120.0, 32.0));
+            let select_old_btn =
+                egui::Button::new("🕐 Chọn file cũ").min_size(egui::vec2(120.0, 32.0));
             if ui.add(select_old_btn).clicked() {
                 *show_period_selector = true;
             }
@@ -122,8 +118,7 @@ pub fn render_toolbar(
 
         // Nút Bỏ chọn tất cả
         if has_selection {
-            let deselect_btn = egui::Button::new("⬜ Bỏ chọn")
-                .min_size(egui::vec2(100.0, 32.0));
+            let deselect_btn = egui::Button::new("⬜ Bỏ chọn").min_size(egui::vec2(100.0, 32.0));
             if ui.add(deselect_btn).clicked() {
                 action = ToolbarAction::DeselectAll;
             }
@@ -134,11 +129,10 @@ pub fn render_toolbar(
         // Nút Xóa
         if has_selection {
             let delete_label = format!("🗑 Xóa đã chọn ({})", selected_count);
-            let delete_btn = egui::Button::new(
-                egui::RichText::new(delete_label).color(egui::Color32::from_rgb(255, 112, 67)),
-            )
-            .min_size(egui::vec2(120.0, 32.0));
-            
+            let delete_btn =
+                egui::Button::new(egui::RichText::new(delete_label).color(colors::STATUS_DANGER))
+                    .min_size(egui::vec2(120.0, 32.0));
+
             if ui.add(delete_btn).clicked() {
                 action = ToolbarAction::Delete;
             }

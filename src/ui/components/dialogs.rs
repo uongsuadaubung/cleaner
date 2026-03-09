@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::ui::colors;
 use crate::utils::format_size;
 
 /// Trạng thái dialog
@@ -74,13 +75,20 @@ fn render_processing(
                 ui.add_space(10.0);
                 ui.label(egui::RichText::new("⏳ Vui lòng chờ...").size(16.0));
                 ui.add_space(10.0);
-                
-                // Progress bar
-                let progress = if total > 0 { current as f32 / total as f32 } else { 0.0 };
+
+                let progress = if total > 0 {
+                    current as f32 / total as f32
+                } else {
+                    0.0
+                };
                 ui.add(egui::ProgressBar::new(progress).text(format!("{} / {}", current, total)));
-                
+
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new(message).small().color(egui::Color32::from_rgb(176, 190, 197)));
+                ui.label(
+                    egui::RichText::new(message)
+                        .small()
+                        .color(colors::TEXT_SECONDARY),
+                );
                 ui.add_space(10.0);
             });
         });
@@ -100,41 +108,33 @@ fn render_confirm_delete(ctx: &egui::Context, file_count: usize, total_size: u64
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
-                ui.label(
-                    egui::RichText::new("Bạn có chắc muốn xóa các file đã chọn?")
-                        .size(16.0),
-                );
+                ui.label(egui::RichText::new("Bạn có chắc muốn xóa các file đã chọn?").size(16.0));
                 ui.add_space(8.0);
                 ui.label(format!("Số file: {}", file_count));
                 ui.label(format!("Tổng dung lượng: {}", format_size(total_size)));
                 ui.add_space(5.0);
                 ui.label(
                     egui::RichText::new("📋 File sẽ được chuyển vào Recycle Bin")
-                        .color(egui::Color32::from_rgb(102, 187, 106))
+                        .color(colors::STATUS_SUCCESS)
                         .small(),
                 );
                 ui.add_space(15.0);
 
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 20.0;
-
-                    // Center buttons
                     let available = ui.available_width();
                     ui.add_space((available - 240.0) / 2.0);
 
-                    let delete_btn = egui::Button::new(
-                        egui::RichText::new("🗑 Xóa")
-                            .color(egui::Color32::WHITE),
-                    )
-                    .fill(egui::Color32::from_rgb(211, 47, 47))
-                    .min_size(egui::vec2(100.0, 35.0));
+                    let delete_btn =
+                        egui::Button::new(egui::RichText::new("🗑 Xóa").color(egui::Color32::WHITE))
+                            .fill(colors::STATUS_ERROR_BG)
+                            .min_size(egui::vec2(100.0, 35.0));
 
                     if ui.add(delete_btn).clicked() {
                         result = DialogResult::Confirmed;
                     }
 
-                    let cancel_btn = egui::Button::new("Hủy")
-                        .min_size(egui::vec2(100.0, 35.0));
+                    let cancel_btn = egui::Button::new("Hủy").min_size(egui::vec2(100.0, 35.0));
                     if ui.add(cancel_btn).clicked() {
                         result = DialogResult::Cancelled;
                     }
@@ -158,23 +158,25 @@ fn render_confirm_sort(ctx: &egui::Context) -> DialogResult {
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
-                ui.label(
-                    egui::RichText::new("Sắp xếp file vào thư mục theo loại?")
-                        .size(16.0),
-                );
+                ui.label(egui::RichText::new("Sắp xếp file vào thư mục theo loại?").size(16.0));
                 ui.add_space(8.0);
                 ui.label("Các thư mục sẽ được tạo:");
                 ui.add_space(4.0);
 
                 let folders = [
-                    "📄 Documents/", "🖼 Images/", "🎬 Videos/",
-                    "🎵 Music/", "📦 Archives/", "⚙ Programs/",
-                    "💻 Code/", "📎 Others/",
+                    "📄 Documents/",
+                    "🖼 Images/",
+                    "🎬 Videos/",
+                    "🎵 Music/",
+                    "📦 Archives/",
+                    "⚙ Programs/",
+                    "💻 Code/",
+                    "📎 Others/",
                 ];
                 for folder in &folders {
                     ui.label(
                         egui::RichText::new(*folder)
-                            .color(egui::Color32::from_rgb(255, 238, 88))
+                            .color(colors::STATUS_WARNING)
                             .small(),
                     );
                 }
@@ -187,18 +189,16 @@ fn render_confirm_sort(ctx: &egui::Context) -> DialogResult {
                     ui.add_space((available - 240.0) / 2.0);
 
                     let confirm_btn = egui::Button::new(
-                        egui::RichText::new("📂 Sắp xếp")
-                            .color(egui::Color32::WHITE),
+                        egui::RichText::new("📂 Sắp xếp").color(egui::Color32::WHITE),
                     )
-                    .fill(egui::Color32::from_rgb(56, 142, 60))
+                    .fill(colors::STATUS_SUCCESS_BG)
                     .min_size(egui::vec2(100.0, 35.0));
 
                     if ui.add(confirm_btn).clicked() {
                         result = DialogResult::Confirmed;
                     }
 
-                    let cancel_btn = egui::Button::new("Hủy")
-                        .min_size(egui::vec2(100.0, 35.0));
+                    let cancel_btn = egui::Button::new("Hủy").min_size(egui::vec2(100.0, 35.0));
                     if ui.add(cancel_btn).clicked() {
                         result = DialogResult::Cancelled;
                     }
@@ -235,17 +235,16 @@ fn render_result_message(
                 ui.add_space(10.0);
 
                 let color = if is_error {
-                    egui::Color32::from_rgb(255, 112, 67)
+                    colors::STATUS_DANGER
                 } else {
-                    egui::Color32::from_rgb(102, 187, 106)
+                    colors::STATUS_SUCCESS
                 };
 
                 ui.label(egui::RichText::new(message).size(14.0).color(color));
 
                 ui.add_space(15.0);
 
-                let ok_btn = egui::Button::new("OK")
-                    .min_size(egui::vec2(80.0, 32.0));
+                let ok_btn = egui::Button::new("OK").min_size(egui::vec2(80.0, 32.0));
                 if ui.add(ok_btn).clicked() {
                     result = DialogResult::Closed;
                 }
