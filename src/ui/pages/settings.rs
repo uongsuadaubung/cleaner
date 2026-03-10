@@ -1,6 +1,7 @@
 use eframe::egui;
 use crate::lang::{Lang, Language};
 use crate::ui::colors;
+use crate::ui::theme;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
@@ -97,18 +98,20 @@ pub fn render_settings(
     state: &mut SettingsState,
     lang: &Lang,
 ) {
+    let t = &theme::DEFAULT;
+
     ui.heading(
         egui::RichText::new(lang.settings_title)
-            .size(24.0)
+            .size(t.font_heading)
             .color(colors::text_primary(ui.visuals().dark_mode)),
     );
-    ui.add_space(20.0);
+    ui.add_space(t.space_xl);
 
     let mut changed = false;
 
     ui.group(|ui| {
-        ui.label(egui::RichText::new(lang.settings_appearance).strong().size(16.0));
-        ui.add_space(8.0);
+        ui.label(egui::RichText::new(lang.settings_appearance).strong().size(t.font_md));
+        ui.add_space(t.space_md);
 
         ui.horizontal(|ui| {
             if ui
@@ -135,11 +138,11 @@ pub fn render_settings(
         });
     });
 
-    ui.add_space(20.0);
+    ui.add_space(t.space_xl);
 
     ui.group(|ui| {
-        ui.label(egui::RichText::new(lang.settings_language).strong().size(16.0));
-        ui.add_space(8.0);
+        ui.label(egui::RichText::new(lang.settings_language).strong().size(t.font_md));
+        ui.add_space(t.space_md);
 
         ui.horizontal(|ui| {
             let previous_language = state.language;

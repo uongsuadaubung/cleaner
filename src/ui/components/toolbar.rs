@@ -1,5 +1,6 @@
 use crate::lang::Lang;
 use crate::ui::colors;
+use crate::ui::theme;
 use eframe::egui;
 
 /// Khoảng thời gian chọn file cũ
@@ -62,15 +63,18 @@ pub fn render_toolbar(
     show_period_selector: &mut bool,
     lang: &Lang,
 ) -> ToolbarAction {
+    let t = &theme::DEFAULT;
     let mut action = ToolbarAction::None;
     let has_selection = selected_count > 0;
 
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.spacing_mut().item_spacing.x = t.space_md;
 
         // Nút Quét lại
-        let rescan_btn = egui::Button::new(lang.btn_rescan).min_size(egui::vec2(100.0, 32.0));
-        if ui.add(rescan_btn).clicked() {
+        if ui
+            .add(egui::Button::new(lang.btn_rescan).min_size(theme::btn_size(t.btn_width_md)))
+            .clicked()
+        {
             action = ToolbarAction::Rescan;
         }
 
@@ -82,8 +86,10 @@ pub fn render_toolbar(
         } else {
             lang.btn_sort.to_string()
         };
-        let sort_btn = egui::Button::new(sort_label).min_size(egui::vec2(100.0, 32.0));
-        if ui.add(sort_btn).clicked() {
+        if ui
+            .add(egui::Button::new(sort_label).min_size(theme::btn_size(t.btn_width_md)))
+            .clicked()
+        {
             action = ToolbarAction::Sort;
         }
 
@@ -109,36 +115,37 @@ pub fn render_toolbar(
                 *show_period_selector = false;
             }
         } else {
-            let select_old_btn =
-                egui::Button::new(lang.btn_select_old).min_size(egui::vec2(120.0, 32.0));
-            if ui.add(select_old_btn).clicked() {
+            if ui
+                .add(egui::Button::new(lang.btn_select_old).min_size(theme::btn_size(t.btn_width_lg)))
+                .clicked()
+            {
                 *show_period_selector = true;
             }
         }
 
         ui.separator();
 
-        // Nút Bỏ chọn tất cả
         if has_selection {
-            let deselect_btn =
-                egui::Button::new(lang.btn_deselect).min_size(egui::vec2(100.0, 32.0));
-            if ui.add(deselect_btn).clicked() {
+            if ui
+                .add(egui::Button::new(lang.btn_deselect).min_size(theme::btn_size(t.btn_width_md)))
+                .clicked()
+            {
                 action = ToolbarAction::DeselectAll;
             }
 
             ui.separator();
-        }
 
-        // Nút Xóa
-        if has_selection {
             let delete_label = format!("{} ({})", lang.dialog_btn_delete, selected_count);
-            let delete_btn = egui::Button::new(
-                egui::RichText::new(delete_label)
-                    .color(colors::status_danger(ui.visuals().dark_mode)),
-            )
-            .min_size(egui::vec2(120.0, 32.0));
-
-            if ui.add(delete_btn).clicked() {
+            if ui
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new(delete_label)
+                            .color(colors::status_danger(ui.visuals().dark_mode)),
+                    )
+                    .min_size(theme::btn_size(t.btn_width_lg)),
+                )
+                .clicked()
+            {
                 action = ToolbarAction::Delete;
             }
         }

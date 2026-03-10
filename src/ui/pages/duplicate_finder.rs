@@ -6,6 +6,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use crate::lang::Lang;
 use crate::ui::colors;
+use crate::ui::theme;
 use crate::utils::format_size;
 use eframe::egui;
 use sha2::{Digest, Sha256};
@@ -209,6 +210,7 @@ pub fn render_duplicate_finder(
     ctx: &egui::Context,
     lang: &Lang,
 ) {
+    let t = &theme::DEFAULT;
     // ---- BACKGROUND TASKS LISTENER ----
     if let Some(ref rx) = state.scan_rx {
         while let Ok((new_status, result)) = rx.try_recv() {
@@ -247,17 +249,17 @@ pub fn render_duplicate_finder(
     }
 
     // ---- HEADER ----
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(lang.dup_title)
-                .size(20.0)
+                .size(t.font_page_title)
                 .strong()
                 .color(colors::text_primary(ui.visuals().dark_mode)),
         );
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- CHỌN ĐƯỜNG DẪN ----
     ui.horizontal(|ui| {
@@ -286,7 +288,7 @@ pub fn render_duplicate_finder(
         }
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- TOOLBAR QUÉT ----
     ui.horizontal(|ui| {
@@ -294,7 +296,7 @@ pub fn render_duplicate_finder(
             && ui
                 .add(
                     egui::Button::new(lang.btn_scan_duplicates)
-                        .min_size(egui::vec2(160.0, 32.0)),
+                        .min_size(theme::btn_size(t.btn_width_xl)),
                 )
                 .clicked()
         {
@@ -326,38 +328,38 @@ pub fn render_duplicate_finder(
         }
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
     ui.separator();
 
     // ---- KẾT QUẢ / LỖI ----
     if let Some((msg, is_error)) = &state.result_message {
-        ui.add_space(8.0);
+        ui.add_space(t.space_md);
         let color = if *is_error {
             colors::status_danger(ui.visuals().dark_mode)
         } else {
             colors::status_success(ui.visuals().dark_mode)
         };
         ui.label(egui::RichText::new(msg).color(color).strong());
-        ui.add_space(4.0);
+        ui.add_space(t.space_sm);
     }
 
     match &state.status {
         ScanStatus::Idle => {
-            ui.add_space(40.0);
+            ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.label(
                     egui::RichText::new(lang.dup_idle_desc)
                         .color(colors::text_muted(ui.visuals().dark_mode)),
                 );
-                ui.add_space(16.0);
+                ui.add_space(t.space_lg);
                 egui::Frame::new()
                     .fill(colors::accent_subtle(ui.visuals().dark_mode))
                     .stroke(egui::Stroke::new(
                         1.0,
                         colors::accent(ui.visuals().dark_mode).gamma_multiply(0.15),
                     ))
-                    .corner_radius(egui::CornerRadius::same(12))
-                    .inner_margin(egui::Margin::same(20))
+                    .corner_radius(theme::corner_radius(t.radius_lg))
+                    .inner_margin(theme::padding(t.card_padding_lg))
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new(lang.dup_idle_hint)
@@ -368,10 +370,10 @@ pub fn render_duplicate_finder(
             return;
         }
         ScanStatus::Scanning { message, current, .. } => {
-            ui.add_space(40.0);
+            ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.spinner();
-                ui.add_space(16.0);
+                ui.add_space(t.space_lg);
                 ui.label(egui::RichText::new(lang.dup_scanning).strong());
                 ui.label(
                     egui::RichText::new(message)
@@ -386,10 +388,10 @@ pub fn render_duplicate_finder(
             return;
         }
         ScanStatus::Hashing { message, current, total } => {
-            ui.add_space(40.0);
+            ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.spinner();
-                ui.add_space(16.0);
+                ui.add_space(t.space_lg);
                 ui.label(egui::RichText::new(lang.dup_hashing).strong());
                 let progress = if *total > 0 {
                     *current as f32 / *total as f32
@@ -406,10 +408,10 @@ pub fn render_duplicate_finder(
             return;
         }
         ScanStatus::Deleting { message } => {
-            ui.add_space(40.0);
+            ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.spinner();
-                ui.add_space(16.0);
+                ui.add_space(t.space_lg);
                 ui.label(
                     egui::RichText::new(lang.dup_deleting)
                         .strong()
@@ -430,11 +432,11 @@ pub fn render_duplicate_finder(
 
     // ---- KẾT QUẢ ----
     if state.groups.is_empty() {
-        ui.add_space(40.0);
+        ui.add_space(t.space_xxl);
         ui.vertical_centered(|ui| {
             ui.label(
                 egui::RichText::new(lang.dup_no_duplicates)
-                    .size(18.0)
+                    .size(t.font_lg)
                     .color(colors::status_success(ui.visuals().dark_mode)),
             );
         });
@@ -442,7 +444,7 @@ pub fn render_duplicate_finder(
     }
 
     // ToolBar kết quả
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
     ui.horizontal(|ui| {
         let mut total_selected = 0;
         let mut selected_size = 0;
@@ -533,20 +535,20 @@ pub fn render_duplicate_finder(
             }
         });
     });
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- DANH SÁCH THEO NHÓM ----
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .show(ui, |ui| {
             for (i, group) in state.groups.iter_mut().enumerate() {
-                ui.add_space(16.0);
+                ui.add_space(t.space_lg);
                 egui::Frame::new()
                     .fill(
                         colors::accent_subtle(ui.visuals().dark_mode).linear_multiply(0.2),
                     )
-                    .corner_radius(egui::CornerRadius::same(6))
-                    .inner_margin(egui::Margin::same(8))
+                    .corner_radius(theme::corner_radius(t.radius_sm))
+                    .inner_margin(theme::padding(t.card_padding_sm))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             let short_hash = if group.hash.len() >= 8 {
@@ -572,7 +574,7 @@ pub fn render_duplicate_finder(
                             );
                         });
 
-                        ui.add_space(4.0);
+                        ui.add_space(t.space_sm);
 
                         for file in &mut group.files {
                             ui.horizontal(|ui| {
@@ -597,7 +599,7 @@ pub fn render_duplicate_finder(
                                     );
                                 });
                             });
-                            ui.add_space(2.0);
+                            ui.add_space(t.space_xs);
                         }
                     });
             }

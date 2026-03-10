@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
-
 use crate::scanner;
 use crate::ui::components::sidebar::{self, ActivePage};
+use crate::ui::theme;
 
 /// State chính của ứng dụng
 pub struct FolderCleanerApp {
@@ -70,17 +70,34 @@ impl FolderCleanerApp {
             eprintln!("Segoe UI font not found, using default font");
         }
 
+        // Load Segoe UI Emoji as fallback for modern emoji (🧹🔍⚙…)
+        let emoji_font_path = std::path::Path::new("C:\\Windows\\Fonts\\seguiemj.ttf");
+        if let Ok(font_data) = std::fs::read(emoji_font_path) {
+            fonts.font_data.insert(
+                "segoe_ui_emoji".to_string(),
+                egui::FontData::from_owned(font_data).into(),
+            );
+            // Append as fallback so Segoe UI is tried first, emoji font fills the gaps
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                family.push("segoe_ui_emoji".to_string());
+            }
+        } else {
+            eprintln!("Segoe UI Emoji font not found, some icons may not display");
+        }
+
         ctx.set_fonts(fonts);
     }
 
     fn setup_styles(ctx: &egui::Context) {
+        let t = &theme::DEFAULT;
         let mut style = (*ctx.style()).clone();
-        style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-        style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(6);
-        style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
-        style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
-        style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
-        style.visuals.window_corner_radius = egui::CornerRadius::same(10);
+        style.spacing.item_spacing = egui::vec2(t.item_spacing_x, t.item_spacing_y);
+        let r_sm = theme::corner_radius(t.radius_sm);
+        style.visuals.widgets.noninteractive.corner_radius = r_sm;
+        style.visuals.widgets.inactive.corner_radius = r_sm;
+        style.visuals.widgets.active.corner_radius = r_sm;
+        style.visuals.widgets.hovered.corner_radius = r_sm;
+        style.visuals.window_corner_radius = theme::corner_radius(t.radius_md);
         ctx.set_style(style);
     }
 }
@@ -92,7 +109,7 @@ impl eframe::App for FolderCleanerApp {
 
         // Left panel - Sidebar navigation
         egui::SidePanel::left("sidebar_panel")
-            .exact_width(72.0)
+            .exact_width(theme::DEFAULT.sidebar_width)
             .resizable(false)
             .frame(
                 egui::Frame::new()

@@ -6,6 +6,7 @@ use crate::ui::colors;
 use crate::ui::components::dialogs::{DialogResult, DialogState};
 use crate::ui::components::toolbar::{self, OldFilePeriod, ToolbarAction};
 use crate::ui::components::tree_view;
+use crate::ui::theme;
 use crate::utils::format_size;
 use eframe::egui;
 use std::path::{Path, PathBuf};
@@ -290,20 +291,21 @@ pub fn render_cleanup(
     scan_path: &mut PathBuf,
     lang: &Lang,
 ) {
+    let t = &theme::DEFAULT;
     state.check_background_tasks(ctx, scan_path, lang);
 
     // ---- HEADER TITLE ----
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(lang.cleanup_title)
-                .size(20.0)
+                .size(t.font_page_title)
                 .strong()
                 .color(colors::text_primary(ui.visuals().dark_mode)),
         );
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- CHỌN ĐƯỜNG DẪN ----
     ui.horizontal(|ui| {
@@ -329,7 +331,7 @@ pub fn render_cleanup(
         }
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- TOOLBAR BUTTONS ----
     let total_selected = count_selected_in_entries(&state.entries);
@@ -351,17 +353,17 @@ pub fn render_cleanup(
         state.handle_toolbar_action(tb_action, scan_path, lang);
     });
 
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
     ui.separator();
-    ui.add_space(8.0);
+    ui.add_space(t.space_md);
 
     // ---- DANH SÁCH FILE & STATUS BAR ----
     egui::TopBottomPanel::bottom("cleanup_status_panel")
         .frame(egui::Frame::NONE)
         .show_inside(ui, |ui| {
-            ui.add_space(4.0);
+            ui.add_space(t.space_sm);
             ui.separator();
-            ui.add_space(4.0);
+            ui.add_space(t.space_sm);
             ui.horizontal(|ui| {
                 let selected_count = total_selected;
                 let selected_size = selected_size_in_entries(&state.entries);
@@ -407,13 +409,13 @@ pub fn render_cleanup(
 
     if state.entries.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(100.0);
+            ui.add_space(t.space_empty_top);
             ui.label(
                 egui::RichText::new(lang.empty_folder)
-                    .size(24.0)
+                    .size(t.font_heading)
                     .color(colors::text_secondary(ui.visuals().dark_mode)),
             );
-            ui.add_space(10.0);
+            ui.add_space(t.space_md + 2.0);
             ui.label(lang.empty_folder_desc);
         });
     } else if let Some(sort_criteria) =
