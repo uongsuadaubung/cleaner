@@ -3,6 +3,7 @@
 mod actions;
 mod app;
 mod file_info;
+pub mod lang;
 mod scanner;
 mod ui;
 mod utils;

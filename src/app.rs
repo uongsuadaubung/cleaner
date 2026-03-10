@@ -2,21 +2,17 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
+
 use crate::scanner;
 use crate::ui::components::sidebar::{self, ActivePage};
 
 /// State chính của ứng dụng
 pub struct FolderCleanerApp {
-    /// Trang đang được hiển thị
     active_page: ActivePage,
-    /// Đường dẫn thư mục chung
     scan_path: PathBuf,
-
-    /// Trạng thái riêng của trang Dọn Dẹp
     cleanup_state: crate::ui::pages::cleanup::CleanupState,
-
-    /// Trạng thái riêng của trang Tìm file trùng lặp
     duplicate_finder_state: crate::ui::pages::duplicate_finder::DuplicateFinderState,
+    settings_state: crate::ui::pages::settings::SettingsState,
 }
 
 impl FolderCleanerApp {
@@ -25,17 +21,26 @@ impl FolderCleanerApp {
         Self::setup_styles(&cc.egui_ctx);
 
         let scan_path = dirs::download_dir().unwrap_or_else(|| {
-            eprintln!("Không tìm thấy thư mục Downloads, sử dụng thư mục hiện tại");
+            eprintln!("Cannot find Downloads folder, using current directory");
             PathBuf::from(".")
         });
 
         let entries = scanner::scan_directory(&scan_path);
+
+        let settings_state = crate::ui::pages::settings::SettingsState::load();
+        let theme_preference = match settings_state.theme {
+            crate::ui::pages::settings::ThemeSetting::System => egui::ThemePreference::System,
+            crate::ui::pages::settings::ThemeSetting::Dark => egui::ThemePreference::Dark,
+            crate::ui::pages::settings::ThemeSetting::Light => egui::ThemePreference::Light,
+        };
+        cc.egui_ctx.options_mut(|o| o.theme_preference = theme_preference);
 
         Self {
             active_page: ActivePage::Cleanup,
             scan_path,
             cleanup_state: crate::ui::pages::cleanup::CleanupState::new(entries),
             duplicate_finder_state: Default::default(),
+            settings_state,
         }
     }
 
@@ -62,13 +67,12 @@ impl FolderCleanerApp {
                 .unwrap()
                 .insert(0, "segoe_ui".to_string());
         } else {
-            eprintln!("Không tìm thấy font Segoe UI, sử dụng font mặc định");
+            eprintln!("Segoe UI font not found, using default font");
         }
 
         ctx.set_fonts(fonts);
     }
 
-    /// Thiết lập style cho ứng dụng
     fn setup_styles(ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
@@ -83,6 +87,9 @@ impl FolderCleanerApp {
 
 impl eframe::App for FolderCleanerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Resolve current language strings once per frame
+        let lang = self.settings_state.language.strings();
+
         // Left panel - Sidebar navigation
         egui::SidePanel::left("sidebar_panel")
             .exact_width(72.0)
@@ -93,10 +100,10 @@ impl eframe::App for FolderCleanerApp {
                     .stroke(egui::Stroke::NONE),
             )
             .show(ctx, |ui| {
-                sidebar::render_sidebar(ui, &mut self.active_page);
+                sidebar::render_sidebar(ui, &mut self.active_page, &lang);
             });
 
-        // Central panel - nội dung trang
+        // Central panel
         egui::CentralPanel::default().show(ctx, |ui| match self.active_page {
             ActivePage::Cleanup => {
                 crate::ui::pages::cleanup::render_cleanup(
@@ -104,6 +111,7 @@ impl eframe::App for FolderCleanerApp {
                     ctx,
                     &mut self.cleanup_state,
                     &mut self.scan_path,
+                    &lang,
                 );
             }
             ActivePage::DuplicateFinder => {
@@ -112,6 +120,15 @@ impl eframe::App for FolderCleanerApp {
                     &mut self.duplicate_finder_state,
                     &mut self.scan_path,
                     ctx,
+                    &lang,
+                );
+            }
+            ActivePage::Settings => {
+                crate::ui::pages::settings::render_settings(
+                    ui,
+                    ctx,
+                    &mut self.settings_state,
+                    &lang,
                 );
             }
         });

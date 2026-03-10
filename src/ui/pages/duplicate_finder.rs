@@ -4,6 +4,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
+use crate::lang::Lang;
 use crate::ui::colors;
 use crate::utils::format_size;
 use eframe::egui;
@@ -55,7 +56,7 @@ pub struct DuplicateFinderState {
     pub delete_rx: Option<Receiver<(ScanStatus, Option<crate::actions::cleaner::CleanResult>)>>,
 }
 
-/// Helper block: Calculate hash for a file (reads up to a reasonable limit, or chunks)
+/// Helper block: Calculate hash for a file
 fn calculate_hash(path: &Path) -> Option<String> {
     let mut file = fs::File::open(path).ok()?;
     let mut hasher = Sha256::new();
@@ -70,22 +71,22 @@ fn calculate_hash(path: &Path) -> Option<String> {
     Some(hex::encode(hasher.finalize()))
 }
 
-/// Lấy tất cả file recursively (return path, size, name)
+/// Lấy tất cả file recursively
 fn collect_all_files(
     dir: &Path,
     files: &mut Vec<(PathBuf, u64, String)>,
     tx: &Option<ScanSenderType>,
+    found_label: &str,
 ) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Ok(meta) = fs::metadata(&path) {
                 if meta.is_dir() {
-                    collect_all_files(&path, files, tx);
+                    collect_all_files(&path, files, tx, found_label);
                 } else if meta.is_file() {
                     let size = meta.len();
                     if size > 0 {
-                        // Ignore 0 byte files or it will match everywhere
                         files.push((
                             path.clone(),
                             size,
@@ -97,7 +98,7 @@ fn collect_all_files(
                     {
                         let _ = sender.send((
                             ScanStatus::Scanning {
-                                message: format!("Đã tìm thấy {} file...", files.len()),
+                                message: format!("{} {} file...", found_label, files.len()),
                                 current: files.len(),
                                 total: 0,
                             },
@@ -110,12 +111,19 @@ fn collect_all_files(
     }
 }
 
-/// Thread quét trùng lặp
-pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
+/// Thread quét trùng lặp (với chuỗi ngôn ngữ truyền vào)
+pub fn scan_duplicates_task(
+    root_path: PathBuf,
+    tx: ScanSenderType,
+    analyzing_msg: String,
+    found_label: String,
+    checking_msg: String,
+    reading_msg: String,
+) {
     // 1. Collect all files
     let _ = tx.send((
         ScanStatus::Scanning {
-            message: "Đang phân tích cấu trúc thư mục...".to_string(),
+            message: analyzing_msg,
             current: 0,
             total: 0,
         },
@@ -123,7 +131,7 @@ pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
     ));
 
     let mut all_files = Vec::new();
-    collect_all_files(&root_path, &mut all_files, &Some(tx.clone()));
+    collect_all_files(&root_path, &mut all_files, &Some(tx.clone()), &found_label);
 
     // 2. Nhóm theo size
     let mut size_groups: HashMap<u64, Vec<(PathBuf, String)>> = HashMap::new();
@@ -131,7 +139,7 @@ pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
         size_groups.entry(size).or_default().push((path, name));
     }
 
-    // Only keep sizes that have > 1 file
+    // Only keep sizes with > 1 file
     let mut potential_duplicates = Vec::new();
     for (size, files) in size_groups {
         if files.len() > 1 {
@@ -141,11 +149,11 @@ pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
         }
     }
 
-    // 3. Tính hash cho mọi file potential file
+    // 3. Tính hash
     let total_to_hash = potential_duplicates.len();
     let _ = tx.send((
         ScanStatus::Hashing {
-            message: "Đang kiểm tra nội dung file...".to_string(),
+            message: checking_msg,
             current: 0,
             total: total_to_hash,
         },
@@ -155,10 +163,9 @@ pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
     let mut hash_groups: HashMap<String, DuplicateGroup> = HashMap::new();
     for (i, (path, size, name)) in potential_duplicates.into_iter().enumerate() {
         if i % 10 == 0 || size > 10 * 1024 * 1024 {
-            // Cap update rate
             let _ = tx.send((
                 ScanStatus::Hashing {
-                    message: format!("Đang đọc nội dung... ({}/{})", i, total_to_hash),
+                    message: format!("{} ({}/{})", reading_msg, i, total_to_hash),
                     current: i,
                     total: total_to_hash,
                 },
@@ -183,13 +190,12 @@ pub fn scan_duplicates_task(root_path: PathBuf, tx: ScanSenderType) {
         }
     }
 
-    // 4. Lọc các nhóm trùng lặp (size >= 2)
+    // 4. Lọc nhóm trùng lặp
     let mut final_groups: Vec<DuplicateGroup> = hash_groups
         .into_values()
         .filter(|g| g.files.len() > 1)
         .collect();
 
-    // Sort groups by size desc
     final_groups.sort_by(|a, b| b.size.cmp(&a.size));
 
     let _ = tx.send((ScanStatus::Done, Some(final_groups)));
@@ -201,6 +207,7 @@ pub fn render_duplicate_finder(
     state: &mut DuplicateFinderState,
     scan_path: &mut std::path::PathBuf,
     ctx: &egui::Context,
+    lang: &Lang,
 ) {
     // ---- BACKGROUND TASKS LISTENER ----
     if let Some(ref rx) = state.scan_rx {
@@ -217,25 +224,19 @@ pub fn render_duplicate_finder(
         while let Ok((new_status, res)) = rx.try_recv() {
             state.status = new_status;
             if let Some(clean_res) = res {
-                // Xóa các file đã xóa thành công khỏi groups
                 for g in &mut state.groups {
-                    g.files.retain(|f| {
-                        // Tối ưu: Nếu file được trash thành công, ta không nên retain nó nữa
-                        // Nhưng trash::delete_all không trả về danh sách file xóa thành công chi tiết,
-                        // ta cứ giả định là những file `selected` đã bị xóa.
-                        !f.selected
-                    });
+                    g.files.retain(|f| !f.selected);
                 }
-                state.groups.retain(|g| g.files.len() > 1); // Remove empty groups or singletons
+                state.groups.retain(|g| g.files.len() > 1);
 
                 let err_msg = if clean_res.failed.is_empty() {
                     (
-                        format!("Đã chuyển {} file vào thùng rác.", clean_res.deleted),
+                        lang.dup_moved_to_trash.replace("{}", &clean_res.deleted.to_string()),
                         false,
                     )
                 } else {
                     (
-                        format!("Đã xảy ra lỗi xóa {} file.", clean_res.failed.len()),
+                        lang.dup_delete_error.replace("{}", &clean_res.failed.len().to_string()),
                         true,
                     )
                 };
@@ -245,14 +246,14 @@ pub fn render_duplicate_finder(
         }
     }
 
-    // ---- HEADER THÔNG TIN  ----
+    // ---- HEADER ----
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.label(
-            egui::RichText::new("🔍 Trình Tìm File Trùng Lặp")
+            egui::RichText::new(lang.dup_title)
                 .size(20.0)
                 .strong()
-                .color(colors::TEXT_PRIMARY),
+                .color(colors::text_primary(ui.visuals().dark_mode)),
         );
     });
 
@@ -260,23 +261,25 @@ pub fn render_duplicate_finder(
 
     // ---- CHỌN ĐƯỜNG DẪN ----
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("📁 Đường dẫn:").color(colors::TEXT_SECONDARY));
+        ui.label(
+            egui::RichText::new(lang.path_label)
+                .color(colors::text_secondary(ui.visuals().dark_mode)),
+        );
         ui.label(
             egui::RichText::new(scan_path.display().to_string())
-                .color(colors::ACCENT)
+                .color(colors::accent(ui.visuals().dark_mode))
                 .strong(),
         );
 
         if matches!(state.status, ScanStatus::Idle | ScanStatus::Done)
             && ui
-                .add(egui::Button::new("📂 Thay đổi...").small())
+                .add(egui::Button::new(lang.btn_change).small())
                 .clicked()
             && let Some(path) = rfd::FileDialog::new()
                 .set_directory(&*scan_path)
                 .pick_folder()
         {
             *scan_path = path;
-            // Reset kết quả quét cũ khi đổi thư mục
             state.groups.clear();
             state.status = ScanStatus::Idle;
             state.result_message = None;
@@ -289,13 +292,16 @@ pub fn render_duplicate_finder(
     ui.horizontal(|ui| {
         if matches!(state.status, ScanStatus::Idle | ScanStatus::Done)
             && ui
-                .add(egui::Button::new("▶ Quét file trùng lặp").min_size(egui::vec2(160.0, 32.0)))
+                .add(
+                    egui::Button::new(lang.btn_scan_duplicates)
+                        .min_size(egui::vec2(160.0, 32.0)),
+                )
                 .clicked()
         {
             let (tx, rx) = channel();
             state.scan_rx = Some(rx);
             state.status = ScanStatus::Scanning {
-                message: "Bắt đầu...".into(),
+                message: lang.dup_starting.to_string(),
                 current: 0,
                 total: 0,
             };
@@ -303,8 +309,19 @@ pub fn render_duplicate_finder(
             state.result_message = None;
 
             let path_clone = scan_path.to_path_buf();
+            let analyzing_msg = lang.dup_analyzing.to_string();
+            let found_label = lang.dup_found_files.to_string();
+            let checking_msg = lang.dup_checking_content.to_string();
+            let reading_msg = lang.dup_reading_content.to_string();
             std::thread::spawn(move || {
-                scan_duplicates_task(path_clone, tx);
+                scan_duplicates_task(
+                    path_clone,
+                    tx,
+                    analyzing_msg,
+                    found_label,
+                    checking_msg,
+                    reading_msg,
+                );
             });
         }
     });
@@ -312,13 +329,13 @@ pub fn render_duplicate_finder(
     ui.add_space(8.0);
     ui.separator();
 
-    // ---- TRẠNG THÁI & LỖI ----
+    // ---- KẾT QUẢ / LỖI ----
     if let Some((msg, is_error)) = &state.result_message {
         ui.add_space(8.0);
         let color = if *is_error {
-            colors::STATUS_DANGER
+            colors::status_danger(ui.visuals().dark_mode)
         } else {
-            colors::STATUS_SUCCESS
+            colors::status_success(ui.visuals().dark_mode)
         };
         ui.label(egui::RichText::new(msg).color(color).strong());
         ui.add_space(4.0);
@@ -328,49 +345,52 @@ pub fn render_duplicate_finder(
         ScanStatus::Idle => {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
-                ui.label(egui::RichText::new("Tính năng tìm file giống nhau qua nội dung (hash) trong thư mục gốc được chọn.").color(colors::TEXT_MUTED));
+                ui.label(
+                    egui::RichText::new(lang.dup_idle_desc)
+                        .color(colors::text_muted(ui.visuals().dark_mode)),
+                );
                 ui.add_space(16.0);
                 egui::Frame::new()
-                    .fill(colors::ACCENT_SUBTLE)
-                    .stroke(egui::Stroke::new(1.0, colors::ACCENT.gamma_multiply(0.15)))
+                    .fill(colors::accent_subtle(ui.visuals().dark_mode))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        colors::accent(ui.visuals().dark_mode).gamma_multiply(0.15),
+                    ))
                     .corner_radius(egui::CornerRadius::same(12))
                     .inner_margin(egui::Margin::same(20))
                     .show(ui, |ui| {
-                        ui.label(egui::RichText::new("Nhấn 'Quét file trùng lặp' để bắt đầu!").color(colors::ACCENT));
+                        ui.label(
+                            egui::RichText::new(lang.dup_idle_hint)
+                                .color(colors::accent(ui.visuals().dark_mode)),
+                        );
                     });
             });
             return;
         }
-        ScanStatus::Scanning {
-            message, current, ..
-        } => {
+        ScanStatus::Scanning { message, current, .. } => {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.spinner();
                 ui.add_space(16.0);
-                ui.label(egui::RichText::new("Đang quét thư mục...").strong());
+                ui.label(egui::RichText::new(lang.dup_scanning).strong());
                 ui.label(
                     egui::RichText::new(message)
-                        .color(colors::TEXT_MUTED)
+                        .color(colors::text_muted(ui.visuals().dark_mode))
                         .small(),
                 );
                 ui.label(
-                    egui::RichText::new(format!("Đã duyệt {} mục", current))
-                        .color(colors::TEXT_SECONDARY),
+                    egui::RichText::new(format!("{} {} items", lang.dup_scanned_items, current))
+                        .color(colors::text_secondary(ui.visuals().dark_mode)),
                 );
             });
             return;
         }
-        ScanStatus::Hashing {
-            message,
-            current,
-            total,
-        } => {
+        ScanStatus::Hashing { message, current, total } => {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.spinner();
                 ui.add_space(16.0);
-                ui.label(egui::RichText::new("Đang đối chiếu file...").strong());
+                ui.label(egui::RichText::new(lang.dup_hashing).strong());
                 let progress = if *total > 0 {
                     *current as f32 / *total as f32
                 } else {
@@ -379,7 +399,7 @@ pub fn render_duplicate_finder(
                 ui.add(egui::ProgressBar::new(progress).show_percentage());
                 ui.label(
                     egui::RichText::new(message)
-                        .color(colors::TEXT_MUTED)
+                        .color(colors::text_muted(ui.visuals().dark_mode))
                         .small(),
                 );
             });
@@ -391,13 +411,13 @@ pub fn render_duplicate_finder(
                 ui.spinner();
                 ui.add_space(16.0);
                 ui.label(
-                    egui::RichText::new("Đang xóa...")
+                    egui::RichText::new(lang.dup_deleting)
                         .strong()
-                        .color(colors::STATUS_DANGER),
+                        .color(colors::status_danger(ui.visuals().dark_mode)),
                 );
                 ui.label(
                     egui::RichText::new(message)
-                        .color(colors::TEXT_MUTED)
+                        .color(colors::text_muted(ui.visuals().dark_mode))
                         .small(),
                 );
             });
@@ -413,15 +433,15 @@ pub fn render_duplicate_finder(
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
             ui.label(
-                egui::RichText::new("Không tìm thấy file trùng lặp nào! 🎉")
+                egui::RichText::new(lang.dup_no_duplicates)
                     .size(18.0)
-                    .color(colors::STATUS_SUCCESS),
+                    .color(colors::status_success(ui.visuals().dark_mode)),
             );
         });
         return;
     }
 
-    // ToolBar của kết quả
+    // ToolBar kết quả
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         let mut total_selected = 0;
@@ -437,9 +457,14 @@ pub fn render_duplicate_finder(
 
         let groups_len = state.groups.len();
         ui.label(
-            egui::RichText::new(format!("Tìm thấy {} nhóm trùng lặp", groups_len))
-                .strong()
-                .color(colors::ACCENT),
+            egui::RichText::new(format!(
+                "{} {} {}",
+                lang.dup_found_groups,
+                groups_len,
+                if groups_len == 1 { "group" } else { "groups" }
+            ))
+            .strong()
+            .color(colors::accent(ui.visuals().dark_mode)),
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -447,15 +472,15 @@ pub fn render_duplicate_finder(
                 if ui
                     .button(
                         egui::RichText::new(format!(
-                            "🗑 Xóa {} file ({})",
+                            "{} {} ({})",
+                            lang.dup_delete_btn,
                             total_selected,
                             format_size(selected_size)
                         ))
-                        .color(colors::STATUS_ERROR_BG),
+                        .color(colors::status_error_bg(ui.visuals().dark_mode)),
                     )
                     .clicked()
                 {
-                    // Thu thập danh sách file được chọn để xóa
                     let mut to_delete = Vec::new();
                     for g in &state.groups {
                         for f in &g.files {
@@ -468,7 +493,7 @@ pub fn render_duplicate_finder(
                         let (tx, rx) = channel();
                         state.delete_rx = Some(rx);
                         state.status = ScanStatus::Deleting {
-                            message: "Đang chuyển file vào Recycle Bin...".into(),
+                            message: lang.dup_moving_to_trash.to_string(),
                         };
                         std::thread::spawn(move || {
                             let mut result = crate::actions::cleaner::CleanResult {
@@ -477,14 +502,14 @@ pub fn render_duplicate_finder(
                             };
                             match trash::delete_all(&to_delete) {
                                 Ok(()) => result.deleted = to_delete.len(),
-                                Err(e) => result.failed.push(("Xóa".to_string(), e.to_string())),
+                                Err(e) => result.failed.push(("Delete".to_string(), e.to_string())),
                             }
                             let _ = tx.send((ScanStatus::Done, Some(result)));
                         });
                     }
                 }
 
-                if ui.button("Bỏ chọn tất cả").clicked() {
+                if ui.button(lang.dup_deselect_all).clicked() {
                     for g in &mut state.groups {
                         for f in &mut g.files {
                             f.selected = false;
@@ -492,19 +517,16 @@ pub fn render_duplicate_finder(
                     }
                 }
             }
-            if ui.button("⚡ Chọn nhanh file bản sao").clicked() {
-                // Giữ lại 1 bản gốc (unselected), chọn (selected) các bản còn lại trong nhóm
+            if ui.button(lang.dup_quick_select).clicked() {
                 for g in &mut state.groups {
                     let mut first = true;
-                    // Ta sort file theo độ dài tên để ưu tiên giữ file tên ngắn (thường là bản gốc)
                     g.files.sort_by(|a, b| a.name.len().cmp(&b.name.len()));
-
                     for f in &mut g.files {
                         if first {
-                            f.selected = false; // Gốc
+                            f.selected = false;
                             first = false;
                         } else {
-                            f.selected = true; // Bản sao
+                            f.selected = true;
                         }
                     }
                 }
@@ -520,7 +542,9 @@ pub fn render_duplicate_finder(
             for (i, group) in state.groups.iter_mut().enumerate() {
                 ui.add_space(16.0);
                 egui::Frame::new()
-                    .fill(colors::ACCENT_SUBTLE.linear_multiply(0.2)) // Dùng màu nhạt hơn
+                    .fill(
+                        colors::accent_subtle(ui.visuals().dark_mode).linear_multiply(0.2),
+                    )
                     .corner_radius(egui::CornerRadius::same(6))
                     .inner_margin(egui::Margin::same(8))
                     .show(ui, |ui| {
@@ -532,16 +556,18 @@ pub fn render_duplicate_finder(
                             };
                             ui.label(
                                 egui::RichText::new(format!(
-                                    "📦 Nhóm {} ({} / mỗi file)",
+                                    "{} {} ({} / {})",
+                                    lang.dup_group_label,
                                     i + 1,
-                                    format_size(group.size)
+                                    format_size(group.size),
+                                    "each"
                                 ))
-                                .color(colors::TEXT_PRIMARY)
+                                .color(colors::text_primary(ui.visuals().dark_mode))
                                 .strong(),
                             );
                             ui.label(
                                 egui::RichText::new(format!("Hash: {}", short_hash))
-                                    .color(colors::TEXT_MUTED)
+                                    .color(colors::text_muted(ui.visuals().dark_mode))
                                     .small(),
                             );
                         });
@@ -553,19 +579,20 @@ pub fn render_duplicate_finder(
                                 ui.checkbox(&mut file.selected, "");
 
                                 let text_color = if file.selected {
-                                    colors::STATUS_DANGER
+                                    colors::status_danger(ui.visuals().dark_mode)
                                 } else {
-                                    colors::FILE_NORMAL
+                                    colors::file_normal(ui.visuals().dark_mode)
                                 };
 
                                 ui.vertical(|ui| {
                                     ui.label(
-                                        egui::RichText::new(&file.name).color(text_color).strong(),
+                                        egui::RichText::new(&file.name)
+                                            .color(text_color)
+                                            .strong(),
                                     );
-                                    // Rút gọn đường dẫn nếu cần hoặc để nguyên
                                     ui.label(
                                         egui::RichText::new(file.path.display().to_string())
-                                            .color(colors::TEXT_MUTED)
+                                            .color(colors::text_muted(ui.visuals().dark_mode))
                                             .small(),
                                     );
                                 });

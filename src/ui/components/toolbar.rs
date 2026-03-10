@@ -1,3 +1,4 @@
+use crate::lang::Lang;
 use crate::ui::colors;
 use eframe::egui;
 
@@ -12,13 +13,13 @@ pub enum OldFilePeriod {
 }
 
 impl OldFilePeriod {
-    pub fn label(&self) -> &str {
+    pub fn label<'a>(&self, lang: &'a Lang) -> &'a str {
         match self {
-            OldFilePeriod::OneMonth => "1 tháng",
-            OldFilePeriod::TwoMonths => "2 tháng",
-            OldFilePeriod::ThreeMonths => "3 tháng",
-            OldFilePeriod::SixMonths => "6 tháng",
-            OldFilePeriod::OneYear => "1 năm",
+            OldFilePeriod::OneMonth => lang.period_1m,
+            OldFilePeriod::TwoMonths => lang.period_2m,
+            OldFilePeriod::ThreeMonths => lang.period_3m,
+            OldFilePeriod::SixMonths => lang.period_6m,
+            OldFilePeriod::OneYear => lang.period_1y,
         }
     }
 
@@ -47,7 +48,7 @@ pub enum ToolbarAction {
     None,
     Rescan,
     Sort,
-    SelectOld(u64), // số ngày
+    SelectOld(u64),
     Delete,
     DeselectAll,
 }
@@ -59,6 +60,7 @@ pub fn render_toolbar(
     selected_count: usize,
     sort_count: usize,
     show_period_selector: &mut bool,
+    lang: &Lang,
 ) -> ToolbarAction {
     let mut action = ToolbarAction::None;
     let has_selection = selected_count > 0;
@@ -67,7 +69,7 @@ pub fn render_toolbar(
         ui.spacing_mut().item_spacing.x = 8.0;
 
         // Nút Quét lại
-        let rescan_btn = egui::Button::new("🔄 Quét lại").min_size(egui::vec2(100.0, 32.0));
+        let rescan_btn = egui::Button::new(lang.btn_rescan).min_size(egui::vec2(100.0, 32.0));
         if ui.add(rescan_btn).clicked() {
             action = ToolbarAction::Rescan;
         }
@@ -76,9 +78,9 @@ pub fn render_toolbar(
 
         // Nút Sắp xếp
         let sort_label = if sort_count > 0 {
-            format!("📂 Sắp xếp ({})", sort_count)
+            format!("{} ({})", lang.btn_sort, sort_count)
         } else {
-            "📂 Sắp xếp".to_string()
+            lang.btn_sort.to_string()
         };
         let sort_btn = egui::Button::new(sort_label).min_size(egui::vec2(100.0, 32.0));
         if ui.add(sort_btn).clicked() {
@@ -89,12 +91,12 @@ pub fn render_toolbar(
 
         if *show_period_selector {
             egui::ComboBox::from_id_salt("old_file_period")
-                .selected_text("🕐 Chọn thời gian...")
+                .selected_text(lang.period_select_time)
                 .width(150.0)
                 .show_ui(ui, |ui| {
                     for period in OldFilePeriod::ALL {
                         if ui
-                            .selectable_value(selected_period, *period, period.label())
+                            .selectable_value(selected_period, *period, period.label(lang))
                             .clicked()
                         {
                             action = ToolbarAction::SelectOld(period.days());
@@ -103,12 +105,12 @@ pub fn render_toolbar(
                     }
                 });
 
-            if ui.button("❌").on_hover_text("Hủy chọn").clicked() {
+            if ui.button("❌").on_hover_text(lang.period_cancel_tooltip).clicked() {
                 *show_period_selector = false;
             }
         } else {
             let select_old_btn =
-                egui::Button::new("🕐 Chọn file cũ").min_size(egui::vec2(120.0, 32.0));
+                egui::Button::new(lang.btn_select_old).min_size(egui::vec2(120.0, 32.0));
             if ui.add(select_old_btn).clicked() {
                 *show_period_selector = true;
             }
@@ -118,7 +120,8 @@ pub fn render_toolbar(
 
         // Nút Bỏ chọn tất cả
         if has_selection {
-            let deselect_btn = egui::Button::new("⬜ Bỏ chọn").min_size(egui::vec2(100.0, 32.0));
+            let deselect_btn =
+                egui::Button::new(lang.btn_deselect).min_size(egui::vec2(100.0, 32.0));
             if ui.add(deselect_btn).clicked() {
                 action = ToolbarAction::DeselectAll;
             }
@@ -128,10 +131,12 @@ pub fn render_toolbar(
 
         // Nút Xóa
         if has_selection {
-            let delete_label = format!("🗑 Xóa đã chọn ({})", selected_count);
-            let delete_btn =
-                egui::Button::new(egui::RichText::new(delete_label).color(colors::STATUS_DANGER))
-                    .min_size(egui::vec2(120.0, 32.0));
+            let delete_label = format!("{} ({})", lang.dialog_btn_delete, selected_count);
+            let delete_btn = egui::Button::new(
+                egui::RichText::new(delete_label)
+                    .color(colors::status_danger(ui.visuals().dark_mode)),
+            )
+            .min_size(egui::vec2(120.0, 32.0));
 
             if ui.add(delete_btn).clicked() {
                 action = ToolbarAction::Delete;

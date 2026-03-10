@@ -1,5 +1,6 @@
 use crate::actions::{cleaner, sorter};
 use crate::file_info::{FileEntry, SortCriteria, SortDirection, SortState};
+use crate::lang::Lang;
 use crate::scanner;
 use crate::ui::colors;
 use crate::ui::components::dialogs::{DialogResult, DialogState};
@@ -43,10 +44,10 @@ impl CleanupState {
         }
     }
 
-    pub fn rescan(&mut self, path: &Path) {
+    pub fn rescan(&mut self, path: &Path, lang: &Lang) {
         self.entries = scanner::scan_directory(path);
         self.apply_sorting();
-        self.status_message = Some("Đã quét lại thư mục".to_string());
+        self.status_message = Some(lang.msg_rescanned.to_string());
     }
 
     pub fn apply_sorting(&mut self) {
@@ -106,11 +107,11 @@ impl CleanupState {
         self.apply_sorting();
     }
 
-    pub fn handle_toolbar_action(&mut self, action: ToolbarAction, scan_path: &Path) {
+    pub fn handle_toolbar_action(&mut self, action: ToolbarAction, scan_path: &Path, lang: &Lang) {
         match action {
             ToolbarAction::None => {}
             ToolbarAction::Rescan => {
-                self.rescan(scan_path);
+                self.rescan(scan_path, lang);
             }
             ToolbarAction::Sort => {
                 self.dialog_state = DialogState::ConfirmSort;
@@ -120,8 +121,10 @@ impl CleanupState {
                 let count = count_selected_in_entries(&self.entries);
                 let size = selected_size_in_entries(&self.entries);
                 self.status_message = Some(format!(
-                    "Đã chọn {} file cũ hơn {} ngày ({})",
+                    "{} {} {} {} ({})",
+                    lang.status_selected,
                     count,
+                    "file",
                     days,
                     format_size(size)
                 ));
@@ -138,12 +141,17 @@ impl CleanupState {
             }
             ToolbarAction::DeselectAll => {
                 cleaner::deselect_all(&mut self.entries);
-                self.status_message = Some("Đã bỏ chọn tất cả".to_string());
+                self.status_message = Some(lang.msg_deselected_all.to_string());
             }
         }
     }
 
-    pub fn handle_dialog_result(&mut self, result: DialogResult, scan_path: &Path) {
+    pub fn handle_dialog_result(
+        &mut self,
+        result: DialogResult,
+        scan_path: &Path,
+        lang: &Lang,
+    ) {
         match result {
             DialogResult::None => {}
             DialogResult::Confirmed => match &self.dialog_state {
@@ -154,8 +162,8 @@ impl CleanupState {
                     let entries_clone = self.entries.clone();
 
                     self.dialog_state = DialogState::Processing {
-                        title: "Đang xóa...".to_string(),
-                        message: "Đang bắt đầu...".to_string(),
+                        title: lang.msg_deleting_title.to_string(),
+                        message: lang.msg_deleting_starting.to_string(),
                         current: 0,
                         total: count_selected_in_entries(&entries_clone),
                     };
@@ -184,10 +192,11 @@ impl CleanupState {
 
                     let sort_result = sorter::sort_files(&entries_to_sort, scan_path);
                     let message = if sort_result.failed.is_empty() {
-                        format!("Đã sắp xếp {} file thành công!", sort_result.moved)
+                        format!("{} {} file!", lang.dialog_btn_sort, sort_result.moved)
                     } else {
                         format!(
-                            "Đã sắp xếp {} file. {} file thất bại:\n{}",
+                            "{} {} file. {} file:\n{}",
+                            lang.dialog_btn_sort,
                             sort_result.moved,
                             sort_result.failed.len(),
                             sort_result
@@ -198,12 +207,13 @@ impl CleanupState {
                                 .join("\n")
                         )
                     };
+                    let title = lang.dialog_confirm_sort_title.trim_start_matches(['📂', ' ']).to_string();
                     self.dialog_state = DialogState::ResultMessage {
-                        title: "Kết quả sắp xếp".to_string(),
+                        title,
                         message,
                         is_error: !sort_result.failed.is_empty(),
                     };
-                    self.rescan(scan_path);
+                    self.rescan(scan_path, lang);
                 }
                 _ => {
                     self.dialog_state = DialogState::None;
@@ -215,7 +225,12 @@ impl CleanupState {
         }
     }
 
-    pub fn check_background_tasks(&mut self, ctx: &egui::Context, scan_path: &Path) {
+    pub fn check_background_tasks(
+        &mut self,
+        ctx: &egui::Context,
+        scan_path: &Path,
+        lang: &Lang,
+    ) {
         if let Some(ref rx) = self.progress_rx {
             let mut got_update = false;
             while let Ok((current, total, file_name)) = rx.try_recv() {
@@ -223,7 +238,7 @@ impl CleanupState {
                 if let DialogState::Processing { title, .. } = &self.dialog_state {
                     self.dialog_state = DialogState::Processing {
                         title: title.clone(),
-                        message: format!("Đang xử lý: {}", file_name),
+                        message: format!("{} {}", lang.msg_processing, file_name),
                         current,
                         total,
                     };
@@ -238,10 +253,11 @@ impl CleanupState {
             && let Ok(clean_result) = rx.try_recv()
         {
             let message = if clean_result.failed.is_empty() {
-                format!("Đã xóa {} file thành công!", clean_result.deleted)
+                format!("{} {} file!", lang.dup_delete_btn, clean_result.deleted)
             } else {
                 format!(
-                    "Đã xóa {} file. {} file thất bại:\n{}",
+                    "{} {} file. {} file:\n{}",
+                    lang.dup_delete_btn,
                     clean_result.deleted,
                     clean_result.failed.len(),
                     clean_result
@@ -253,15 +269,16 @@ impl CleanupState {
                 )
             };
 
+            let title = lang.dialog_confirm_delete_title.trim_start_matches(['⚠', ' ']).to_string();
             self.dialog_state = DialogState::ResultMessage {
-                title: "Kết quả xóa".to_string(),
+                title,
                 message,
                 is_error: !clean_result.failed.is_empty(),
             };
 
             self.progress_rx = None;
             self.clean_result_rx = None;
-            self.rescan(scan_path);
+            self.rescan(scan_path, lang);
         }
     }
 }
@@ -271,17 +288,18 @@ pub fn render_cleanup(
     ctx: &egui::Context,
     state: &mut CleanupState,
     scan_path: &mut PathBuf,
+    lang: &Lang,
 ) {
-    state.check_background_tasks(ctx, scan_path);
+    state.check_background_tasks(ctx, scan_path, lang);
 
     // ---- HEADER TITLE ----
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.label(
-            egui::RichText::new("🧹 Công Cụ Dọn Dẹp")
+            egui::RichText::new(lang.cleanup_title)
                 .size(20.0)
                 .strong()
-                .color(colors::TEXT_PRIMARY),
+                .color(colors::text_primary(ui.visuals().dark_mode)),
         );
     });
 
@@ -289,22 +307,25 @@ pub fn render_cleanup(
 
     // ---- CHỌN ĐƯỜNG DẪN ----
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("📁 Đường dẫn:").color(colors::TEXT_SECONDARY));
+        ui.label(
+            egui::RichText::new(lang.path_label)
+                .color(colors::text_secondary(ui.visuals().dark_mode)),
+        );
         ui.label(
             egui::RichText::new(scan_path.display().to_string())
-                .color(colors::ACCENT)
+                .color(colors::accent(ui.visuals().dark_mode))
                 .strong(),
         );
 
         if ui
-            .add(egui::Button::new("📂 Thay đổi...").small())
+            .add(egui::Button::new(lang.btn_change).small())
             .clicked()
             && let Some(path) = rfd::FileDialog::new()
                 .set_directory(&*scan_path)
                 .pick_folder()
         {
             *scan_path = path;
-            state.rescan(scan_path);
+            state.rescan(scan_path, lang);
         }
     });
 
@@ -325,8 +346,9 @@ pub fn render_cleanup(
             total_selected,
             sort_selected_count,
             &mut state.show_period_selector,
+            lang,
         );
-        state.handle_toolbar_action(tb_action, scan_path);
+        state.handle_toolbar_action(tb_action, scan_path, lang);
     });
 
     ui.add_space(8.0);
@@ -348,14 +370,15 @@ pub fn render_cleanup(
 
                 ui.label(
                     egui::RichText::new(format!(
-                        "✅ Đã chọn: {} file ({})",
+                        "{} {} file ({})",
+                        lang.status_selected,
                         selected_count,
                         format_size(selected_size)
                     ))
                     .color(if selected_count > 0 {
-                        colors::STATUS_SUCCESS
+                        colors::status_success(ui.visuals().dark_mode)
                     } else {
-                        colors::TEXT_SECONDARY
+                        colors::text_secondary(ui.visuals().dark_mode)
                     }),
                 );
 
@@ -363,18 +386,19 @@ pub fn render_cleanup(
 
                 ui.label(
                     egui::RichText::new(format!(
-                        "📊 Tổng: {} file ({})",
+                        "{} {} file ({})",
+                        lang.status_total,
                         total_files,
                         format_size(total_size)
                     ))
-                    .color(colors::TEXT_SECONDARY),
+                    .color(colors::text_secondary(ui.visuals().dark_mode)),
                 );
 
                 if let Some(msg) = &state.status_message {
                     ui.separator();
                     ui.label(
                         egui::RichText::new(msg)
-                            .color(colors::STATUS_WARNING)
+                            .color(colors::status_warning(ui.visuals().dark_mode))
                             .small(),
                     );
                 }
@@ -385,24 +409,23 @@ pub fn render_cleanup(
         ui.vertical_centered(|ui| {
             ui.add_space(100.0);
             ui.label(
-                egui::RichText::new("📭 Thư mục trống")
+                egui::RichText::new(lang.empty_folder)
                     .size(24.0)
-                    .color(colors::TEXT_SECONDARY),
+                    .color(colors::text_secondary(ui.visuals().dark_mode)),
             );
             ui.add_space(10.0);
-            ui.label("Không có file nào trong thư mục đã chọn");
+            ui.label(lang.empty_folder_desc);
         });
-    } else {
-        if let Some(sort_criteria) =
-            tree_view::render_tree_view(ui, &mut state.entries, state.sort_state)
-        {
-            state.toggle_sort(sort_criteria);
-        }
+    } else if let Some(sort_criteria) =
+        tree_view::render_tree_view(ui, &mut state.entries, state.sort_state, lang)
+    {
+        state.toggle_sort(sort_criteria);
     }
 
     if state.dialog_state != DialogState::None {
-        let dialog_result = crate::ui::components::dialogs::render_dialog(ctx, &state.dialog_state);
-        state.handle_dialog_result(dialog_result, scan_path);
+        let dialog_result =
+            crate::ui::components::dialogs::render_dialog(ctx, &state.dialog_state, lang);
+        state.handle_dialog_result(dialog_result, scan_path, lang);
     }
 }
 

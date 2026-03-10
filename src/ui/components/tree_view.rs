@@ -1,4 +1,5 @@
 use crate::file_info::{FileEntry, SortCriteria, SortDirection, SortState};
+use crate::lang::Lang;
 use crate::ui::colors;
 use crate::utils::{format_date, format_size};
 use eframe::egui;
@@ -14,13 +15,14 @@ pub fn render_tree_view(
     ui: &mut egui::Ui,
     entries: &mut Vec<FileEntry>,
     sort_state: Option<SortState>,
+    lang: &Lang,
 ) -> Option<SortCriteria> {
     let scroll_bar_width = ui.spacing().scroll.bar_width;
     let total_width = ui.available_width();
     let content_width = total_width - scroll_bar_width - 4.0;
 
     // 1. Render Header
-    let sort_click = render_header(ui, content_width, entries, sort_state);
+    let sort_click = render_header(ui, content_width, entries, sort_state, lang);
     ui.separator();
 
     // 2. Scroll area cho danh sách file
@@ -54,6 +56,7 @@ fn render_header(
     width: f32,
     entries: &mut Vec<FileEntry>,
     sort_state: Option<SortState>,
+    lang: &Lang,
 ) -> Option<SortCriteria> {
     let name_width = calculate_name_width(width);
     let x_offsets = calculate_x_offsets(width);
@@ -72,7 +75,7 @@ fn render_header(
                             let mut all_selected =
                                 !entries.is_empty() && entries.iter().all(|e| e.selected);
                             if ui.checkbox(&mut all_selected, "").clicked() {
-                                for entry in entries {
+                                for entry in entries.iter_mut() {
                                     entry.set_selected_recursive(all_selected);
                                 }
                             }
@@ -82,13 +85,16 @@ fn render_header(
                     ui.add_space(COLUMN_SPACING);
 
                     let label = format!(
-                        "Tên file / Thư mục{}",
+                        "{}{}",
+                        lang.col_name,
                         get_sort_icon(SortCriteria::Name, sort_state)
                     );
                     if ui
                         .selectable_label(
                             false,
-                            egui::RichText::new(label).strong().color(colors::ACCENT),
+                            egui::RichText::new(label)
+                                .strong()
+                                .color(colors::accent(ui.visuals().dark_mode)),
                         )
                         .clicked()
                     {
@@ -102,13 +108,16 @@ fn render_header(
         ui.add_space(x_offsets[2] - (ui.cursor().min.x - ui.max_rect().left()));
         ui.allocate_ui(egui::vec2(DATE_WIDTH, 20.0), |ui| {
             let label = format!(
-                "Ngày tạo{}",
+                "{}{}",
+                lang.col_created,
                 get_sort_icon(SortCriteria::Created, sort_state)
             );
             if ui
                 .selectable_label(
                     false,
-                    egui::RichText::new(label).strong().color(colors::ACCENT),
+                    egui::RichText::new(label)
+                        .strong()
+                        .color(colors::accent(ui.visuals().dark_mode)),
                 )
                 .clicked()
             {
@@ -120,13 +129,16 @@ fn render_header(
         ui.add_space(x_offsets[3] - (ui.cursor().min.x - ui.max_rect().left()));
         ui.allocate_ui(egui::vec2(DATE_WIDTH, 20.0), |ui| {
             let label = format!(
-                "Ngày sửa{}",
+                "{}{}",
+                lang.col_modified,
                 get_sort_icon(SortCriteria::Modified, sort_state)
             );
             if ui
                 .selectable_label(
                     false,
-                    egui::RichText::new(label).strong().color(colors::ACCENT),
+                    egui::RichText::new(label)
+                        .strong()
+                        .color(colors::accent(ui.visuals().dark_mode)),
                 )
                 .clicked()
             {
@@ -139,13 +151,16 @@ fn render_header(
         ui.allocate_ui(egui::vec2(SIZE_WIDTH, 20.0), |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let label = format!(
-                    "Dung lượng{}",
+                    "{}{}",
+                    lang.col_size,
                     get_sort_icon(SortCriteria::Size, sort_state)
                 );
                 if ui
                     .selectable_label(
                         false,
-                        egui::RichText::new(label).strong().color(colors::ACCENT),
+                        egui::RichText::new(label)
+                            .strong()
+                            .color(colors::accent(ui.visuals().dark_mode)),
                     )
                     .clicked()
                 {
@@ -255,7 +270,7 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
                     egui::Label::new(
                         egui::RichText::new(format!("{} {}", icon, name))
                             .strong()
-                            .color(colors::FILE_SELECTED),
+                            .color(colors::file_selected(ui.visuals().dark_mode)),
                     )
                     .selectable(false),
                 );
@@ -264,7 +279,7 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(format!("{} {}", icon, name))
-                            .color(colors::FILE_NORMAL),
+                            .color(colors::file_normal(ui.visuals().dark_mode)),
                     )
                     .selectable(false),
                 );
@@ -279,7 +294,10 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(c_rect), |ui| {
         ui.add_space(2.0);
-        ui.label(egui::RichText::new(format_date(created)).color(colors::TEXT_SECONDARY));
+        ui.label(
+            egui::RichText::new(format_date(created))
+                .color(colors::text_secondary(ui.visuals().dark_mode)),
+        );
     });
 
     // 4. Cột Ngày sửa
@@ -289,7 +307,10 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(m_rect), |ui| {
         ui.add_space(2.0);
-        ui.label(egui::RichText::new(format_date(modified)).color(colors::TEXT_SECONDARY));
+        ui.label(
+            egui::RichText::new(format_date(modified))
+                .color(colors::text_secondary(ui.visuals().dark_mode)),
+        );
     });
 
     // 5. Cột Dung lượng
@@ -299,7 +320,10 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(s_rect), |ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(egui::RichText::new(format_size(size)).color(colors::TEXT_SECONDARY));
+            ui.label(
+                egui::RichText::new(format_size(size))
+                    .color(colors::text_secondary(ui.visuals().dark_mode)),
+            );
         });
     });
 
