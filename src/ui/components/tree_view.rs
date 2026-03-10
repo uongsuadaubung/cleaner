@@ -4,6 +4,15 @@ use crate::ui::colors;
 use crate::ui::theme;
 use crate::utils::{format_date, format_size};
 use eframe::egui;
+use std::path::PathBuf;
+
+/// Hành động trả về từ tree view
+pub enum TreeViewAction {
+    /// Người dùng click header column để sort
+    Sort(SortCriteria),
+    /// Người dùng double-click vào thư mục → điều hướng tới đó
+    NavigateTo(PathBuf),
+}
 
 /// Render tree view cho danh sách file
 pub fn render_tree_view(
@@ -11,7 +20,7 @@ pub fn render_tree_view(
     entries: &mut Vec<FileEntry>,
     sort_state: Option<SortState>,
     lang: &Lang,
-) -> Option<SortCriteria> {
+) -> Option<TreeViewAction> {
     let t = &theme::DEFAULT;
     let scroll_bar_width = ui.spacing().scroll.bar_width;
     let total_width = ui.available_width();
@@ -20,16 +29,24 @@ pub fn render_tree_view(
     let sort_click = render_header(ui, content_width, entries, sort_state, lang, t);
     ui.separator();
 
+    let mut navigate_to: Option<PathBuf> = None;
+
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for entry in entries.iter_mut() {
-                render_entry(ui, entry, 0, content_width, t);
+                if let Some(path) = render_entry(ui, entry, 0, content_width, t) {
+                    navigate_to = Some(path);
+                }
             }
         });
 
-    sort_click
+    if let Some(path) = navigate_to {
+        return Some(TreeViewAction::NavigateTo(path));
+    }
+
+    sort_click.map(TreeViewAction::Sort)
 }
 
 fn get_sort_icon(criteria: SortCriteria, sort_state: Option<SortState>) -> String {
@@ -60,7 +77,10 @@ fn render_header(
         ui.spacing_mut().item_spacing.x = 0.0;
 
         ui.allocate_ui(
-            egui::vec2(t.tree_checkbox_width + t.tree_col_spacing + name_width, 20.0),
+            egui::vec2(
+                t.tree_checkbox_width + t.tree_col_spacing + name_width,
+                20.0,
+            ),
             |ui| {
                 ui.horizontal(|ui| {
                     ui.allocate_ui(egui::vec2(t.tree_checkbox_width, 20.0), |ui| {
@@ -164,8 +184,7 @@ fn render_header(
 }
 
 fn calculate_name_width(total_width: f32, t: &theme::Theme) -> f32 {
-    let meta_parts =
-        t.tree_size_col + (t.tree_date_col * 2.0) + (t.tree_col_spacing * 4.0);
+    let meta_parts = t.tree_size_col + (t.tree_date_col * 2.0) + (t.tree_col_spacing * 4.0);
     (total_width - t.tree_checkbox_width - meta_parts).max(100.0)
 }
 
@@ -179,7 +198,14 @@ fn calculate_x_offsets(total_width: f32, t: &theme::Theme) -> [f32; 5] {
     [x0, x1, x2, x3, x4]
 }
 
-fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f32, t: &theme::Theme) {
+/// Trả về `Some(path)` nếu người dùng double-click vào folder để điều hướng
+fn render_entry(
+    ui: &mut egui::Ui,
+    entry: &mut FileEntry,
+    depth: usize,
+    width: f32,
+    t: &theme::Theme,
+) -> Option<PathBuf> {
     let x_offsets = calculate_x_offsets(width, t);
     let name_width = calculate_name_width(width, t);
     let indent = depth as f32 * t.tree_indent_per_level;
@@ -189,13 +215,18 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
     let name = entry.name.clone();
     let created = entry.created;
     let modified = entry.modified;
-    let size = if is_dir { entry.total_size() } else { entry.size };
+    let size = if is_dir {
+        entry.total_size()
+    } else {
+        entry.size
+    };
 
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(width, t.tree_row_height), egui::Sense::click());
 
     let mut new_selected = entry.selected;
     let mut toggle_expand = false;
+    let mut navigate_to: Option<PathBuf> = None;
 
     if ui.rect_contains_pointer(rect.shrink2(egui::vec2(0.0, 0.5))) {
         ui.painter()
@@ -204,7 +235,8 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
 
     if response.double_clicked() {
         if is_dir {
-            toggle_expand = true;
+            // Double-click folder → điều hướng tới thư mục đó
+            navigate_to = Some(entry.path.clone());
         } else {
             let _ = open::that(&entry.path);
         }
@@ -321,9 +353,18 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut FileEntry, depth: usize, width: f
         entry.expanded = !entry.expanded;
     }
 
+    // Nếu đã navigate, không cần render children (sẽ load page mới)
+    if navigate_to.is_some() {
+        return navigate_to;
+    }
+
     if is_dir && entry.expanded {
         for child in &mut entry.children {
-            render_entry(ui, child, depth + 1, width, t);
+            if let Some(path) = render_entry(ui, child, depth + 1, width, t) {
+                return Some(path);
+            }
         }
     }
+
+    navigate_to
 }

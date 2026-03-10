@@ -6,6 +6,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use crate::lang::Lang;
 use crate::ui::colors;
+use crate::ui::components::bread_crumb;
 use crate::ui::theme;
 use crate::utils::format_size;
 use eframe::egui;
@@ -233,12 +234,14 @@ pub fn render_duplicate_finder(
 
                 let err_msg = if clean_res.failed.is_empty() {
                     (
-                        lang.dup_moved_to_trash.replace("{}", &clean_res.deleted.to_string()),
+                        lang.dup_moved_to_trash
+                            .replace("{}", &clean_res.deleted.to_string()),
                         false,
                     )
                 } else {
                     (
-                        lang.dup_delete_error.replace("{}", &clean_res.failed.len().to_string()),
+                        lang.dup_delete_error
+                            .replace("{}", &clean_res.failed.len().to_string()),
                         true,
                     )
                 };
@@ -261,32 +264,13 @@ pub fn render_duplicate_finder(
 
     ui.add_space(t.space_md);
 
-    // ---- CHỌN ĐƯỜNG DẪN ----
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(lang.path_label)
-                .color(colors::text_secondary(ui.visuals().dark_mode)),
-        );
-        ui.label(
-            egui::RichText::new(scan_path.display().to_string())
-                .color(colors::accent(ui.visuals().dark_mode))
-                .strong(),
-        );
-
-        if matches!(state.status, ScanStatus::Idle | ScanStatus::Done)
-            && ui
-                .add(egui::Button::new(lang.btn_change).small())
-                .clicked()
-            && let Some(path) = rfd::FileDialog::new()
-                .set_directory(&*scan_path)
-                .pick_folder()
-        {
-            *scan_path = path;
-            state.groups.clear();
-            state.status = ScanStatus::Idle;
-            state.result_message = None;
-        }
-    });
+    // ---- CHỌN ĐƯỜNG DẪN (breadcrumb) ----
+    let path_enabled = matches!(state.status, ScanStatus::Idle | ScanStatus::Done);
+    if bread_crumb::render_bread_crumb(ui, scan_path, lang, path_enabled) {
+        state.groups.clear();
+        state.status = ScanStatus::Idle;
+        state.result_message = None;
+    }
 
     ui.add_space(t.space_md);
 
@@ -369,7 +353,9 @@ pub fn render_duplicate_finder(
             });
             return;
         }
-        ScanStatus::Scanning { message, current, .. } => {
+        ScanStatus::Scanning {
+            message, current, ..
+        } => {
             ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.spinner();
@@ -387,7 +373,11 @@ pub fn render_duplicate_finder(
             });
             return;
         }
-        ScanStatus::Hashing { message, current, total } => {
+        ScanStatus::Hashing {
+            message,
+            current,
+            total,
+        } => {
             ui.add_space(t.space_xxl);
             ui.vertical_centered(|ui| {
                 ui.spinner();
@@ -544,9 +534,7 @@ pub fn render_duplicate_finder(
             for (i, group) in state.groups.iter_mut().enumerate() {
                 ui.add_space(t.space_lg);
                 egui::Frame::new()
-                    .fill(
-                        colors::accent_subtle(ui.visuals().dark_mode).linear_multiply(0.2),
-                    )
+                    .fill(colors::accent_subtle(ui.visuals().dark_mode).linear_multiply(0.2))
                     .corner_radius(theme::corner_radius(t.radius_sm))
                     .inner_margin(theme::padding(t.card_padding_sm))
                     .show(ui, |ui| {
@@ -588,9 +576,7 @@ pub fn render_duplicate_finder(
 
                                 ui.vertical(|ui| {
                                     ui.label(
-                                        egui::RichText::new(&file.name)
-                                            .color(text_color)
-                                            .strong(),
+                                        egui::RichText::new(&file.name).color(text_color).strong(),
                                     );
                                     ui.label(
                                         egui::RichText::new(file.path.display().to_string())

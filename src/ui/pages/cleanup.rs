@@ -3,9 +3,10 @@ use crate::file_info::{FileEntry, SortCriteria, SortDirection, SortState};
 use crate::lang::Lang;
 use crate::scanner;
 use crate::ui::colors;
+use crate::ui::components::bread_crumb;
 use crate::ui::components::dialogs::{DialogResult, DialogState};
 use crate::ui::components::toolbar::{self, OldFilePeriod, OldFileScope, ToolbarAction};
-use crate::ui::components::tree_view;
+use crate::ui::components::tree_view::{self, TreeViewAction};
 use crate::ui::theme;
 use crate::utils::format_size;
 use eframe::egui;
@@ -134,13 +135,6 @@ impl CleanupState {
                     OldFileScope::CurrentOnly => lang.period_scope_current,
                     OldFileScope::Recursive => lang.period_scope_recursive,
                 };
-                self.status_message = Some(format!(
-                    "{} {} file | {} ngày | {}",
-                    lang.status_selected,
-                    count,
-                    days,
-                    scope_label
-                ));
                 if count > 0 {
                     self.status_message = Some(
                         lang.msg_old_file_found
@@ -174,12 +168,7 @@ impl CleanupState {
         }
     }
 
-    pub fn handle_dialog_result(
-        &mut self,
-        result: DialogResult,
-        scan_path: &Path,
-        lang: &Lang,
-    ) {
+    pub fn handle_dialog_result(&mut self, result: DialogResult, scan_path: &Path, lang: &Lang) {
         match result {
             DialogResult::None => {}
             DialogResult::Confirmed => match &self.dialog_state {
@@ -235,7 +224,10 @@ impl CleanupState {
                                 .join("\n")
                         )
                     };
-                    let title = lang.dialog_confirm_sort_title.trim_start_matches(['📂', ' ']).to_string();
+                    let title = lang
+                        .dialog_confirm_sort_title
+                        .trim_start_matches(['📂', ' '])
+                        .to_string();
                     self.dialog_state = DialogState::ResultMessage {
                         title,
                         message,
@@ -253,12 +245,7 @@ impl CleanupState {
         }
     }
 
-    pub fn check_background_tasks(
-        &mut self,
-        ctx: &egui::Context,
-        scan_path: &Path,
-        lang: &Lang,
-    ) {
+    pub fn check_background_tasks(&mut self, ctx: &egui::Context, scan_path: &Path, lang: &Lang) {
         if let Some(ref rx) = self.progress_rx {
             let mut got_update = false;
             while let Ok((current, total, file_name)) = rx.try_recv() {
@@ -297,7 +284,10 @@ impl CleanupState {
                 )
             };
 
-            let title = lang.dialog_confirm_delete_title.trim_start_matches(['⚠', ' ']).to_string();
+            let title = lang
+                .dialog_confirm_delete_title
+                .trim_start_matches(['⚠', ' '])
+                .to_string();
             self.dialog_state = DialogState::ResultMessage {
                 title,
                 message,
@@ -334,29 +324,10 @@ pub fn render_cleanup(
 
     ui.add_space(t.space_md);
 
-    // ---- CHỌN ĐƯỜNG DẪN ----
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(lang.path_label)
-                .color(colors::text_secondary(ui.visuals().dark_mode)),
-        );
-        ui.label(
-            egui::RichText::new(scan_path.display().to_string())
-                .color(colors::accent(ui.visuals().dark_mode))
-                .strong(),
-        );
-
-        if ui
-            .add(egui::Button::new(lang.btn_change).small())
-            .clicked()
-            && let Some(path) = rfd::FileDialog::new()
-                .set_directory(&*scan_path)
-                .pick_folder()
-        {
-            *scan_path = path;
-            state.rescan(scan_path, lang);
-        }
-    });
+    // ---- CHỌN ĐƯỜNG DẪN (breadcrumb) ----
+    if bread_crumb::render_bread_crumb(ui, scan_path, lang, true) {
+        state.rescan(scan_path, lang);
+    }
 
     ui.add_space(t.space_md);
 
@@ -446,10 +417,16 @@ pub fn render_cleanup(
             ui.add_space(t.space_md + 2.0);
             ui.label(lang.empty_folder_desc);
         });
-    } else if let Some(sort_criteria) =
+    } else if let Some(action) =
         tree_view::render_tree_view(ui, &mut state.entries, state.sort_state, lang)
     {
-        state.toggle_sort(sort_criteria);
+        match action {
+            TreeViewAction::Sort(criteria) => state.toggle_sort(criteria),
+            TreeViewAction::NavigateTo(path) => {
+                *scan_path = path;
+                state.rescan(scan_path, lang);
+            }
+        }
     }
 
     if state.dialog_state != DialogState::None {
