@@ -1,7 +1,7 @@
 use crate::actions::{cleaner, sorter};
 use crate::file_info::{FileEntry, SortCriteria, SortDirection, SortState};
 use crate::lang::Lang;
-use crate::scanner;
+use crate::scanner::{self, ScanEvent};
 use crate::ui::colors;
 use crate::ui::components::bread_crumb;
 use crate::ui::components::dialogs::{DialogResult, DialogState};
@@ -22,6 +22,12 @@ pub struct CleanupState {
     pub clean_result_rx: Option<std::sync::mpsc::Receiver<cleaner::CleanResult>>,
     pub show_period_selector: bool,
     pub sort_state: Option<SortState>,
+    /// Receiver nhận kết quả scan bất đồng bộ
+    pub scan_rx: Option<std::sync::mpsc::Receiver<ScanEvent>>,
+    /// Đang scan hay không
+    pub is_scanning: bool,
+    /// Progress khi đang scan: (số entry đã đọc, đường dẫn hiện tại)
+    pub scan_progress: Option<(usize, String)>,
 }
 
 impl Default for CleanupState {
@@ -36,6 +42,9 @@ impl Default for CleanupState {
             clean_result_rx: None,
             show_period_selector: false,
             sort_state: None,
+            scan_rx: None,
+            is_scanning: false,
+            scan_progress: None,
         }
     }
 }
@@ -48,10 +57,14 @@ impl CleanupState {
         }
     }
 
-    pub fn rescan(&mut self, path: &Path, lang: &Lang) {
-        self.entries = scanner::scan_directory(path);
-        self.apply_sorting();
-        self.status_message = Some(lang.msg_rescanned.to_string());
+    /// Bắt đầu scan bất đồng bộ — không block UI.
+    /// Kết quả sẽ được nhận qua `scan_rx` trong `check_background_tasks()`.
+    pub fn rescan(&mut self, path: &Path, _lang: &Lang) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.scan_rx = Some(rx);
+        self.is_scanning = true;
+        self.scan_progress = Some((0, path.display().to_string()));
+        scanner::scan_directory_async(path.to_path_buf(), tx);
     }
 
     pub fn apply_sorting(&mut self) {
@@ -245,7 +258,57 @@ impl CleanupState {
         }
     }
 
-    pub fn check_background_tasks(&mut self, ctx: &egui::Context, scan_path: &Path, lang: &Lang) {
+    pub fn check_background_tasks(&mut self, ctx: &egui::Context, _scan_path: &Path, lang: &Lang) {
+        // Poll scan bất đồng bộ
+        if self.is_scanning {
+            if let Some(ref rx) = self.scan_rx {
+                let mut got_update = false;
+                loop {
+                    match rx.try_recv() {
+                        Ok(ScanEvent::Progress {
+                            scanned,
+                            current_path,
+                        }) => {
+                            self.scan_progress =
+                                Some((scanned, current_path.display().to_string()));
+                            got_update = true;
+                        }
+                        Ok(ScanEvent::Done(mut entries)) => {
+                            // Áp dụng sort trên kết quả nhận được
+                            for e in &mut entries {
+                                e.sort_recursive(self.sort_state);
+                            }
+                            entries.sort_by(|a, b| {
+                                b.is_dir
+                                    .cmp(&a.is_dir)
+                                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                            });
+                            self.entries = entries;
+                            self.is_scanning = false;
+                            self.scan_rx = None;
+                            self.scan_progress = None;
+                            self.status_message = Some(lang.msg_rescanned.to_string());
+                            got_update = true;
+                            break;
+                        }
+                        Ok(ScanEvent::Error(e)) => {
+                            self.is_scanning = false;
+                            self.scan_rx = None;
+                            self.scan_progress = None;
+                            self.status_message = Some(format!("Lỗi scan: {}", e));
+                            got_update = true;
+                            break;
+                        }
+                        Err(_) => break,
+                    }
+                }
+                if got_update {
+                    ctx.request_repaint();
+                }
+            }
+        }
+
+        // Poll delete progress
         if let Some(ref rx) = self.progress_rx {
             let mut got_update = false;
             while let Ok((current, total, file_name)) = rx.try_recv() {
@@ -296,7 +359,8 @@ impl CleanupState {
 
             self.progress_rx = None;
             self.clean_result_rx = None;
-            self.rescan(scan_path, lang);
+            // Cập nhật danh sách: lọc bỏ các entry đã bị xóa khỏi disk
+            remove_deleted_entries(&mut self.entries);
         }
     }
 }
@@ -340,16 +404,18 @@ pub fn render_cleanup(
         .count();
 
     ui.horizontal(|ui| {
-        let tb_action = toolbar::render_toolbar(
-            ui,
-            &mut state.selected_period,
-            &mut state.selected_scope,
-            total_selected,
-            sort_selected_count,
-            &mut state.show_period_selector,
-            lang,
-        );
-        state.handle_toolbar_action(tb_action, scan_path, lang);
+        ui.add_enabled_ui(!state.is_scanning, |ui| {
+            let tb_action = toolbar::render_toolbar(
+                ui,
+                &mut state.selected_period,
+                &mut state.selected_scope,
+                total_selected,
+                sort_selected_count,
+                &mut state.show_period_selector,
+                lang,
+            );
+            state.handle_toolbar_action(tb_action, scan_path, lang);
+        });
     });
 
     ui.add_space(t.space_md);
@@ -406,7 +472,36 @@ pub fn render_cleanup(
             });
         });
 
-    if state.entries.is_empty() {
+    if state.is_scanning {
+        // Hiển thị spinner khi đang scan
+        ui.vertical_centered(|ui| {
+            ui.add_space(t.space_empty_top);
+            ui.add(egui::Spinner::new().size(32.0));
+            ui.add_space(t.space_md);
+            if let Some((count, path)) = &state.scan_progress {
+                if *count > 0 {
+                    ui.label(
+                        egui::RichText::new(format!("Đã quét {} mục...", count))
+                            .color(colors::text_secondary(ui.visuals().dark_mode)),
+                    );
+                    ui.add_space(4.0);
+                }
+                // Truncate path nếu quá dài
+                let display_path = if path.len() > 60 {
+                    format!("...{}", &path[path.len() - 57..])
+                } else {
+                    path.clone()
+                };
+                ui.label(
+                    egui::RichText::new(display_path)
+                        .small()
+                        .color(colors::text_secondary(ui.visuals().dark_mode)),
+                );
+            }
+            // Yêu cầu repaint liên tục để spinner quay
+            ctx.request_repaint();
+        });
+    } else if state.entries.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(t.space_empty_top);
             ui.label(
@@ -452,4 +547,18 @@ fn total_files_in_entries(entries: &[FileEntry]) -> usize {
 
 fn total_size_in_entries(entries: &[FileEntry]) -> u64 {
     entries.iter().map(|e| e.total_size()).sum()
+}
+
+/// Lọc đệ quy các entry đã bị xóa khỏi disk.
+/// Chỉ check path.exists() — nhanh hơn rescan nhiều.
+fn remove_deleted_entries(entries: &mut Vec<FileEntry>) {
+    entries.retain_mut(|e| {
+        if !e.path.exists() {
+            return false;
+        }
+        if !e.children.is_empty() {
+            remove_deleted_entries(&mut e.children);
+        }
+        true
+    });
 }

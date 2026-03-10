@@ -1343,6 +1343,7 @@ dependencies = [
  "hex",
  "image",
  "open",
+ "rayon",
  "rfd",
  "sha2",
  "trash",

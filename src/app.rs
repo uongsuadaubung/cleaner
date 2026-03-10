@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
-use crate::scanner;
 use crate::ui::components::sidebar::{self, ActivePage};
 use crate::ui::theme;
 
@@ -25,20 +24,24 @@ impl FolderCleanerApp {
             PathBuf::from(".")
         });
 
-        let entries = scanner::scan_directory(&scan_path);
-
         let settings_state = crate::ui::pages::settings::SettingsState::load();
         let theme_preference = match settings_state.theme {
             crate::ui::pages::settings::ThemeSetting::System => egui::ThemePreference::System,
             crate::ui::pages::settings::ThemeSetting::Dark => egui::ThemePreference::Dark,
             crate::ui::pages::settings::ThemeSetting::Light => egui::ThemePreference::Light,
         };
-        cc.egui_ctx.options_mut(|o| o.theme_preference = theme_preference);
+        cc.egui_ctx
+            .options_mut(|o| o.theme_preference = theme_preference);
+
+        // Khởi tạo cleanup state và bắt đầu scan bất đồng bộ
+        let mut cleanup_state = crate::ui::pages::cleanup::CleanupState::default();
+        let lang = settings_state.language.strings();
+        cleanup_state.rescan(&scan_path, &lang);
 
         Self {
             active_page: ActivePage::Cleanup,
             scan_path,
-            cleanup_state: crate::ui::pages::cleanup::CleanupState::new(entries),
+            cleanup_state,
             duplicate_finder_state: Default::default(),
             settings_state,
         }

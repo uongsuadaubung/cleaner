@@ -22,7 +22,11 @@ pub fn render_bread_crumb(
     let mut changed = false;
 
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(lang.path_label).color(colors::text_secondary(is_dark)));
+        ui.label(
+            egui::RichText::new(lang.path_label)
+                .size(t.font_sm)
+                .color(colors::text_secondary(is_dark)),
+        );
 
         // ---- Các thành phần đường dẫn (segments) ----
         let components: Vec<PathBuf> = {
@@ -54,6 +58,7 @@ pub fn render_bread_crumb(
                 // Segment cuối — highlight bằng accent, không phải link
                 ui.label(
                     egui::RichText::new(&label_text)
+                        .size(t.font_sm)
                         .color(colors::accent(is_dark))
                         .strong(),
                 );
@@ -62,8 +67,8 @@ pub fn render_bread_crumb(
                 let resp = ui.add(
                     egui::Button::new(
                         egui::RichText::new(&label_text)
-                            .color(colors::text_secondary(is_dark))
-                            .small(),
+                            .size(t.font_sm)
+                            .color(colors::text_secondary(is_dark)),
                     )
                     .frame(false),
                 );
@@ -80,20 +85,20 @@ pub fn render_bread_crumb(
                 // Dấu phân cách
                 ui.label(
                     egui::RichText::new("›")
-                        .color(colors::text_muted(is_dark))
-                        .small(),
+                        .size(t.font_sm)
+                        .color(colors::text_muted(is_dark)),
                 );
             } else {
                 // Disabled — hiển thị nhưng không click được
                 ui.label(
                     egui::RichText::new(&label_text)
-                        .color(colors::text_muted(is_dark))
-                        .small(),
+                        .size(t.font_sm)
+                        .color(colors::text_muted(is_dark)),
                 );
                 ui.label(
                     egui::RichText::new("›")
-                        .color(colors::text_muted(is_dark))
-                        .small(),
+                        .size(t.font_sm)
+                        .color(colors::text_muted(is_dark)),
                 );
             }
         }
