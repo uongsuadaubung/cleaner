@@ -4,9 +4,16 @@ use sha2::{Digest, Sha256};
 
 use crate::file_info::FileEntry;
 
-/// Thư mục lưu cache trong %TEMP%\folder_cleaner\
-pub fn cache_dir() -> PathBuf {
-    std::env::temp_dir().join("folder_cleaner")
+const APP_DIR_NAME: &str = "folder_cleaner";
+
+/// Thư mục gốc chứa mọi dữ liệu tạm (cache, settings) của app
+pub fn app_data_dir() -> PathBuf {
+    std::env::temp_dir().join(APP_DIR_NAME)
+}
+
+/// Đường dẫn file settings.ini
+pub fn settings_path() -> PathBuf {
+    app_data_dir().join("settings.ini")
 }
 
 /// Tính đường dẫn file cache cho một scan path cụ thể.
@@ -17,7 +24,7 @@ pub fn cache_path_for(scan_path: &Path) -> PathBuf {
         h.update(scan_path.to_string_lossy().as_bytes());
         format!("{:.16x}", h.finalize()) // 16 hex chars là đủ
     };
-    cache_dir().join(format!("{}.bin", hash))
+    app_data_dir().join(format!("{}.bin", hash))
 }
 
 /// Tải cache từ disk. Trả về `None` nếu không có hoặc đọc lỗi.
@@ -29,7 +36,7 @@ pub fn load(scan_path: &Path) -> Option<Vec<FileEntry>> {
 
 /// Ghi cache ra disk (tạo thư mục nếu chưa có).
 pub fn save(scan_path: &Path, entries: &[FileEntry]) {
-    let dir = cache_dir();
+    let dir = app_data_dir();
     if let Err(e) = std::fs::create_dir_all(&dir) {
         eprintln!("Không thể tạo cache dir: {}", e);
         return;

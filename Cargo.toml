@@ -4,10 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.33.3"
-image = "0.25"
+eframe = { version = "0.33.3", default-features = false, features = [
+    "glow",           # Render backend mặc định trên Windows
+    "default_fonts",  # Phông chữ mặc định của egui
+    "accesskit",      # Hỗ trợ accessibility
+] }
+image = { version = "0.25", default-features = false, features = ["png"] } # Chỉ cần đọc icon.png
 dirs = "6"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 trash = "5"
 open = "5"
 rfd = "0.17.2"
@@ -18,11 +22,11 @@ serde = { version = "1", features = ["derive"] }
 bincode = "1"
 
 [profile.release]
-opt-level = 3
+opt-level = 3     # Tối ưu hóa kích thước thay vì tốc độ (z > 3 cho size)
 lto = true
 codegen-units = 1
 panic = 'abort'
-strip = true # Xóa symbols để giảm dung lượng file thực thi (.exe)
+strip = true       # Xóa symbols để giảm dung lượng file thực thi (.exe)
 
 [build-dependencies]
 embed-resource = "3.0.6"

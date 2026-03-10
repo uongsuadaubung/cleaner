@@ -15,7 +15,7 @@ pub const MAX_SCAN_DEPTH: usize = 6;
 /// Hiện tại bỏ qua thư mục cache của app để tránh đệ quy vào chính mình.
 #[inline]
 fn is_excluded(path: &Path) -> bool {
-    path == cache::cache_dir()
+    path == cache::app_data_dir()
 }
 
 /// Event gửi từ background scan thread về UI thread

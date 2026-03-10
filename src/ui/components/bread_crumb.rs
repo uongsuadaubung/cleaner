@@ -29,30 +29,44 @@ pub fn render_bread_crumb(
         );
 
         // ---- Các thành phần đường dẫn (segments) ----
-        let components: Vec<PathBuf> = {
+        let components: Vec<(PathBuf, String)> = {
             let mut acc = PathBuf::new();
-            let mut segs: Vec<PathBuf> = Vec::new();
+            let mut segs = Vec::new();
             for comp in scan_path.components() {
-                acc.push(comp);
-                segs.push(acc.clone());
+                match comp {
+                    std::path::Component::Prefix(p) => {
+                        acc.push(comp);
+                        segs.push((acc.clone(), p.as_os_str().to_string_lossy().to_string()));
+                    }
+                    std::path::Component::RootDir => {
+                        acc.push(comp);
+                        // Trên Windows, RootDir đi sau Prefix (C:\). Ta không thêm segment mới
+                        // để tránh "C: > >". Thay vào đó, gộp vào label của Prefix nếu là segment đầu.
+                        if let Some(first) = segs.get_mut(0) {
+                            if first.1.ends_with(':') {
+                                first.1.push('\\');
+                                first.0 = acc.clone();
+                            }
+                        } else {
+                            // Trên Linux (root /), hoặc Windows không có prefix
+                            segs.push((acc.clone(), acc.to_string_lossy().to_string()));
+                        }
+                    }
+                    std::path::Component::Normal(n) => {
+                        acc.push(comp);
+                        segs.push((acc.clone(), n.to_string_lossy().to_string()));
+                    }
+                    _ => {
+                        acc.push(comp);
+                    }
+                }
             }
             segs
         };
 
         let total = components.len();
-        for (i, seg_path) in components.into_iter().enumerate() {
+        for (i, (seg_path, label_text)) in components.into_iter().enumerate() {
             let is_last = i == total - 1;
-
-            // Tên hiển thị của segment này
-            let label_text = if i == 0 {
-                // Root / drive (vd "C:\") — giữ nguyên
-                seg_path.to_string_lossy().to_string()
-            } else {
-                seg_path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            };
 
             if is_last {
                 // Segment cuối — highlight bằng accent, không phải link

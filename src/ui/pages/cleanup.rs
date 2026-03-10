@@ -33,6 +33,8 @@ pub struct CleanupState {
     pub scan_progress: Option<(usize, String)>,
     /// Lưu path đang scan để ghi cache khi xong
     current_scan_path: PathBuf,
+    /// Cờ để cuộn lên đầu danh sách (ví dụ sau khi chuyển thư mục)
+    pub should_scroll_to_top: bool,
 }
 
 impl Default for CleanupState {
@@ -52,6 +54,7 @@ impl Default for CleanupState {
             is_silent_scanning: false,
             scan_progress: None,
             current_scan_path: PathBuf::new(),
+            should_scroll_to_top: false,
         }
     }
 }
@@ -84,6 +87,7 @@ impl CleanupState {
             self.is_silent_scanning = false;
         }
 
+        self.should_scroll_to_top = true;
         scanner::scan_directory_async(path.to_path_buf(), tx);
     }
 
@@ -559,9 +563,13 @@ pub fn render_cleanup(
             ui.add_space(t.space_md + 2.0);
             ui.label(lang.empty_folder_desc);
         });
-    } else if let Some(action) =
-        tree_view::render_tree_view(ui, &mut state.entries, state.sort_state, lang)
-    {
+    } else if let Some(action) = tree_view::render_tree_view(
+        ui,
+        &mut state.entries,
+        state.sort_state,
+        lang,
+        &mut state.should_scroll_to_top,
+    ) {
         match action {
             TreeViewAction::Sort(criteria) => state.toggle_sort(criteria),
             TreeViewAction::NavigateTo(path) => {

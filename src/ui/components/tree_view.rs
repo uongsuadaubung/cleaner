@@ -20,6 +20,7 @@ pub fn render_tree_view(
     entries: &mut Vec<FileEntry>,
     sort_state: Option<SortState>,
     lang: &Lang,
+    scroll_to_top: &mut bool,
 ) -> Option<TreeViewAction> {
     let t = &theme::DEFAULT;
     let scroll_bar_width = ui.spacing().scroll.bar_width;
@@ -31,16 +32,21 @@ pub fn render_tree_view(
 
     let mut navigate_to: Option<PathBuf> = None;
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            for entry in entries.iter_mut() {
-                if let Some(path) = render_entry(ui, entry, 0, content_width, t) {
-                    navigate_to = Some(path);
-                }
+    let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+
+    if *scroll_to_top {
+        scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
+        *scroll_to_top = false;
+    }
+
+    scroll_area.show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        for entry in entries.iter_mut() {
+            if let Some(path) = render_entry(ui, entry, 0, content_width, t) {
+                navigate_to = Some(path);
             }
-        });
+        }
+    });
 
     if let Some(path) = navigate_to {
         return Some(TreeViewAction::NavigateTo(path));

@@ -367,7 +367,7 @@ pub fn render_duplicate_finder(
                         .small(),
                 );
                 ui.label(
-                    egui::RichText::new(format!("{} {} items", lang.dup_scanned_items, current))
+                    egui::RichText::new(lang.dup_scanned_items.replace("{}", &current.to_string()))
                         .color(colors::text_secondary(ui.visuals().dark_mode)),
                 );
             });
@@ -449,14 +449,9 @@ pub fn render_duplicate_finder(
 
         let groups_len = state.groups.len();
         ui.label(
-            egui::RichText::new(format!(
-                "{} {} {}",
-                lang.dup_found_groups,
-                groups_len,
-                if groups_len == 1 { "group" } else { "groups" }
-            ))
-            .strong()
-            .color(colors::accent(ui.visuals().dark_mode)),
+            egui::RichText::new(lang.dup_found_groups.replace("{}", &groups_len.to_string()))
+                .strong()
+                .color(colors::accent(ui.visuals().dark_mode)),
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -545,20 +540,22 @@ pub fn render_duplicate_finder(
                                 &group.hash
                             };
                             ui.label(
-                                egui::RichText::new(format!(
-                                    "{} {} ({} / {})",
-                                    lang.dup_group_label,
-                                    i + 1,
-                                    format_size(group.size),
-                                    "each"
-                                ))
+                                egui::RichText::new(
+                                    lang.dup_group_label
+                                        .replace("{i}", &(i + 1).to_string())
+                                        .replace("{size}", &format_size(group.size))
+                                        .replace("{unit}", lang.dup_each_file),
+                                )
                                 .color(colors::text_primary(ui.visuals().dark_mode))
                                 .strong(),
                             );
                             ui.label(
-                                egui::RichText::new(format!("Hash: {}", short_hash))
-                                    .color(colors::text_muted(ui.visuals().dark_mode))
-                                    .small(),
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    lang.dup_hash_label, short_hash
+                                ))
+                                .color(colors::text_muted(ui.visuals().dark_mode))
+                                .small(),
                             );
                         });
 

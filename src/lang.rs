@@ -52,8 +52,8 @@ pub struct Lang {
 
     // ── Cleanup page ─────────────────────────────────────────
     pub cleanup_title: &'static str,
-    pub status_selected: &'static str,  // "✅ Đã chọn: {n} file ({size})"
-    pub status_total: &'static str,     // "📊 Tổng: {n} file ({size})"
+    pub status_selected: &'static str, // "✅ Đã chọn: {n} file ({size})"
+    pub status_total: &'static str,    // "📊 Tổng: {n} file ({size})"
     pub empty_folder: &'static str,
     pub empty_folder_desc: &'static str,
 
@@ -73,9 +73,9 @@ pub struct Lang {
     pub period_scope_recursive: &'static str,
     pub period_scope_label: &'static str,
     pub period_btn_confirm: &'static str,
-    pub period_select_label: &'static str,       // "🕐 Chọn thời gian:"
-    pub msg_old_file_found: &'static str,        // "{n} file ({size}) | {days} ngày | {scope}"
-    pub msg_old_file_not_found: &'static str,    // "Không tìm thấy... {days} ngày ({scope})"
+    pub period_select_label: &'static str, // "🕐 Chọn thời gian:"
+    pub msg_old_file_found: &'static str,  // "{n} file ({size}) | {days} ngày | {scope}"
+    pub msg_old_file_not_found: &'static str, // "Không tìm thấy... {days} ngày ({scope})"
 
     // ── Tree view headers ────────────────────────────────────
     pub col_name: &'static str,
@@ -89,20 +89,22 @@ pub struct Lang {
     pub dup_idle_desc: &'static str,
     pub dup_idle_hint: &'static str,
     pub dup_scanning: &'static str,
-    pub dup_scanned_items: &'static str, // "Đã duyệt {n} mục"
+    pub dup_scanned_items: &'static str, // "Đã duyệt {} mục" hoặc "Scanned {} items"
     pub dup_hashing: &'static str,
     pub dup_deleting: &'static str,
     pub dup_no_duplicates: &'static str,
-    pub dup_found_groups: &'static str,  // "Tìm thấy {n} nhóm trùng lặp"
-    pub dup_delete_btn: &'static str,    // "🗑 Xóa {n} file ({size})"
+    pub dup_found_groups: &'static str, // "Tìm thấy {} nhóm trùng lặp"
+    pub dup_delete_btn: &'static str,   // "🗑 Xóa {n} file ({size})"
     pub dup_deselect_all: &'static str,
     pub dup_quick_select: &'static str,
-    pub dup_group_label: &'static str,   // "📦 Nhóm {i} ({size} / mỗi file)"
+    pub dup_group_label: &'static str, // "📦 Nhóm {i} ({size} / {unit})"
+    pub dup_each_file: &'static str,   // "mỗi file" hoặc "each"
+    pub dup_hash_label: &'static str,  // "Hash:"
     pub dup_moved_to_trash: &'static str, // "Đã chuyển {n} file vào thùng rác."
-    pub dup_delete_error: &'static str,  // "Đã xảy ra lỗi xóa {n} file."
+    pub dup_delete_error: &'static str, // "Đã xảy ra lỗi xóa {n} file."
     pub dup_starting: &'static str,
     pub dup_analyzing: &'static str,
-    pub dup_found_files: &'static str,   // "Đã tìm thấy {n} file..."
+    pub dup_found_files: &'static str, // "Đã tìm thấy {n} file..."
     pub dup_checking_content: &'static str,
     pub dup_reading_content: &'static str, // "Đang đọc nội dung... ({i}/{total})"
     pub dup_moving_to_trash: &'static str,
@@ -187,15 +189,17 @@ pub const VI: Lang = Lang {
     dup_idle_desc: "Tính năng tìm file giống nhau qua nội dung (hash) trong thư mục gốc được chọn.",
     dup_idle_hint: "Nhấn 'Quét file trùng lặp' để bắt đầu!",
     dup_scanning: "Đang quét thư mục...",
-    dup_scanned_items: "Đã duyệt",
+    dup_scanned_items: "Đã duyệt {} mục",
     dup_hashing: "Đang đối chiếu file...",
     dup_deleting: "Đang xóa...",
     dup_no_duplicates: "Không tìm thấy file trùng lặp nào! 🎉",
-    dup_found_groups: "Tìm thấy",
+    dup_found_groups: "Tìm thấy {} nhóm trùng lặp",
     dup_delete_btn: "🗑 Xóa",
     dup_deselect_all: "Bỏ chọn tất cả",
     dup_quick_select: "⚡ Chọn nhanh file bản sao",
-    dup_group_label: "📦 Nhóm",
+    dup_group_label: "📦 Nhóm {i} ({size} / {unit})",
+    dup_each_file: "mỗi file",
+    dup_hash_label: "Hash:",
     dup_moved_to_trash: "Đã chuyển {} file vào thùng rác.",
     dup_delete_error: "Đã xảy ra lỗi xóa {} file.",
     dup_starting: "Bắt đầu...",
@@ -282,15 +286,17 @@ pub const EN: Lang = Lang {
     dup_idle_desc: "Find identical files by content (hash) within the selected root folder.",
     dup_idle_hint: "Click 'Scan for duplicates' to begin!",
     dup_scanning: "Scanning folder...",
-    dup_scanned_items: "Scanned",
+    dup_scanned_items: "Scanned {} items",
     dup_hashing: "Comparing files...",
     dup_deleting: "Deleting...",
     dup_no_duplicates: "No duplicate files found! 🎉",
-    dup_found_groups: "Found",
+    dup_found_groups: "Found {} duplicate group(s)",
     dup_delete_btn: "🗑 Delete",
     dup_deselect_all: "Deselect all",
     dup_quick_select: "⚡ Auto-select copies",
-    dup_group_label: "📦 Group",
+    dup_group_label: "📦 Group {i} ({size} / {unit})",
+    dup_each_file: "each",
+    dup_hash_label: "Hash:",
     dup_moved_to_trash: "Moved {} file(s) to Recycle Bin.",
     dup_delete_error: "Failed to delete {} file(s).",
     dup_starting: "Starting...",
