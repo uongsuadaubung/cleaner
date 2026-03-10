@@ -9,7 +9,7 @@ pub struct CleanResult {
     pub failed: Vec<(String, String)>, // (tên file, lý do)
 }
 
-/// Chọn tất cả file cũ hơn N ngày (đánh dấu selected)
+/// Chọn tất cả file cũ hơn N ngày (đánh dấu selected) - đệ quy toàn bộ cây
 pub fn select_old_files(entries: &mut [FileEntry], days: u64) {
     for entry in entries.iter_mut() {
         if entry.is_dir {
@@ -25,6 +25,22 @@ pub fn select_old_files(entries: &mut [FileEntry], days: u64) {
                 .filter_map(|&t| t)
                 .max();
 
+            entry.selected = is_older_than_days(latest_time, days);
+        }
+    }
+}
+
+/// Chọn file cũ hơn N ngày - chỉ trong thư mục gốc (không vào thư mục con)
+pub fn select_old_files_shallow(entries: &mut [FileEntry], days: u64) {
+    for entry in entries.iter_mut() {
+        if entry.is_dir {
+            // Không đệ quy, bỏ qua thư mục con hoàn toàn
+            entry.selected = false;
+        } else {
+            let latest_time = [entry.modified, entry.accessed, entry.created]
+                .iter()
+                .filter_map(|&t| t)
+                .max();
             entry.selected = is_older_than_days(latest_time, days);
         }
     }

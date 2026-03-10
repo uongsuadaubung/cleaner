@@ -69,6 +69,13 @@ pub struct Lang {
     pub period_3m: &'static str,
     pub period_6m: &'static str,
     pub period_1y: &'static str,
+    pub period_scope_current: &'static str,
+    pub period_scope_recursive: &'static str,
+    pub period_scope_label: &'static str,
+    pub period_btn_confirm: &'static str,
+    pub period_select_label: &'static str,       // "🕐 Chọn thời gian:"
+    pub msg_old_file_found: &'static str,        // "{n} file ({size}) | {days} ngày | {scope}"
+    pub msg_old_file_not_found: &'static str,    // "Không tìm thấy... {days} ngày ({scope})"
 
     // ── Tree view headers ────────────────────────────────────
     pub col_name: &'static str,
@@ -162,6 +169,13 @@ pub const VI: Lang = Lang {
     period_3m: "3 tháng",
     period_6m: "6 tháng",
     period_1y: "1 năm",
+    period_scope_current: "📄 Chỉ thư mục hiện tại",
+    period_scope_recursive: "📂 Bao gồm thư mục con",
+    period_scope_label: "Phạm vi tìm kiếm:",
+    period_btn_confirm: "Xác nhận",
+    period_select_label: "🕐 Chọn thời gian:",
+    msg_old_file_found: "{} file ({}) | {} ngày | {}",
+    msg_old_file_not_found: "Không tìm thấy file nào cũ hơn {} ngày ({})",
 
     col_name: "Tên file / Thư mục",
     col_created: "Ngày tạo",
@@ -250,6 +264,13 @@ pub const EN: Lang = Lang {
     period_3m: "3 months",
     period_6m: "6 months",
     period_1y: "1 year",
+    period_scope_current: "📄 Current folder only",
+    period_scope_recursive: "📂 Include subfolders",
+    period_scope_label: "Search scope:",
+    period_btn_confirm: "Confirm",
+    period_select_label: "🕐 Select period:",
+    msg_old_file_found: "{} files ({}) | {} days | {}",
+    msg_old_file_not_found: "No files older than {} days ({})",
 
     col_name: "File / Folder name",
     col_created: "Created",

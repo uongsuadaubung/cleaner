@@ -4,7 +4,7 @@ use crate::lang::Lang;
 use crate::scanner;
 use crate::ui::colors;
 use crate::ui::components::dialogs::{DialogResult, DialogState};
-use crate::ui::components::toolbar::{self, OldFilePeriod, ToolbarAction};
+use crate::ui::components::toolbar::{self, OldFilePeriod, OldFileScope, ToolbarAction};
 use crate::ui::components::tree_view;
 use crate::ui::theme;
 use crate::utils::format_size;
@@ -15,6 +15,7 @@ pub struct CleanupState {
     pub entries: Vec<FileEntry>,
     pub dialog_state: DialogState,
     pub selected_period: OldFilePeriod,
+    pub selected_scope: OldFileScope,
     pub status_message: Option<String>,
     pub progress_rx: Option<std::sync::mpsc::Receiver<(usize, usize, String)>>,
     pub clean_result_rx: Option<std::sync::mpsc::Receiver<cleaner::CleanResult>>,
@@ -28,6 +29,7 @@ impl Default for CleanupState {
             entries: Vec::new(),
             dialog_state: DialogState::None,
             selected_period: OldFilePeriod::OneMonth,
+            selected_scope: OldFileScope::CurrentOnly,
             status_message: None,
             progress_rx: None,
             clean_result_rx: None,
@@ -117,18 +119,43 @@ impl CleanupState {
             ToolbarAction::Sort => {
                 self.dialog_state = DialogState::ConfirmSort;
             }
-            ToolbarAction::SelectOld(days) => {
-                cleaner::select_old_files(&mut self.entries, days);
+            ToolbarAction::SelectOld { days, scope } => {
+                match scope {
+                    OldFileScope::CurrentOnly => {
+                        cleaner::select_old_files_shallow(&mut self.entries, days);
+                    }
+                    OldFileScope::Recursive => {
+                        cleaner::select_old_files(&mut self.entries, days);
+                    }
+                }
                 let count = count_selected_in_entries(&self.entries);
                 let size = selected_size_in_entries(&self.entries);
+                let scope_label = match scope {
+                    OldFileScope::CurrentOnly => lang.period_scope_current,
+                    OldFileScope::Recursive => lang.period_scope_recursive,
+                };
                 self.status_message = Some(format!(
-                    "{} {} {} {} ({})",
+                    "{} {} file | {} ngày | {}",
                     lang.status_selected,
                     count,
-                    "file",
                     days,
-                    format_size(size)
+                    scope_label
                 ));
+                if count > 0 {
+                    self.status_message = Some(
+                        lang.msg_old_file_found
+                            .replacen("{}", &count.to_string(), 1)
+                            .replacen("{}", &format_size(size), 1)
+                            .replacen("{}", &days.to_string(), 1)
+                            .replacen("{}", scope_label, 1),
+                    );
+                } else {
+                    self.status_message = Some(
+                        lang.msg_old_file_not_found
+                            .replacen("{}", &days.to_string(), 1)
+                            .replacen("{}", scope_label, 1),
+                    );
+                }
             }
             ToolbarAction::Delete => {
                 let count = count_selected_in_entries(&self.entries);
@@ -345,6 +372,7 @@ pub fn render_cleanup(
         let tb_action = toolbar::render_toolbar(
             ui,
             &mut state.selected_period,
+            &mut state.selected_scope,
             total_selected,
             sort_selected_count,
             &mut state.show_period_selector,
