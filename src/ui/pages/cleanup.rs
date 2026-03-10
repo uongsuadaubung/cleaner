@@ -1,4 +1,5 @@
 use crate::actions::{cleaner, sorter};
+use crate::cache;
 use crate::file_info::{FileEntry, SortCriteria, SortDirection, SortState};
 use crate::lang::Lang;
 use crate::scanner::{self, ScanEvent};
@@ -24,10 +25,14 @@ pub struct CleanupState {
     pub sort_state: Option<SortState>,
     /// Receiver nhận kết quả scan bất đồng bộ
     pub scan_rx: Option<std::sync::mpsc::Receiver<ScanEvent>>,
-    /// Đang scan hay không
+    /// Đang scan (chưa có cache) — hiển thị spinner
     pub is_scanning: bool,
+    /// Đang scan âm thầm (có cache rồi) — không spinner
+    pub is_silent_scanning: bool,
     /// Progress khi đang scan: (số entry đã đọc, đường dẫn hiện tại)
     pub scan_progress: Option<(usize, String)>,
+    /// Lưu path đang scan để ghi cache khi xong
+    current_scan_path: PathBuf,
 }
 
 impl Default for CleanupState {
@@ -44,7 +49,9 @@ impl Default for CleanupState {
             sort_state: None,
             scan_rx: None,
             is_scanning: false,
+            is_silent_scanning: false,
             scan_progress: None,
+            current_scan_path: PathBuf::new(),
         }
     }
 }
@@ -57,13 +64,26 @@ impl CleanupState {
         }
     }
 
-    /// Bắt đầu scan bất đồng bộ — không block UI.
-    /// Kết quả sẽ được nhận qua `scan_rx` trong `check_background_tasks()`.
+    /// Bắt đầu scan bất đồng bộ.
+    /// - Nếu có cache: load ngay lập tức, scan âm thầm để kiểm tra thay đổi.
+    /// - Nếu chưa có cache: hiển thị spinner cho đến khi xong.
     pub fn rescan(&mut self, path: &Path, _lang: &Lang) {
+        self.current_scan_path = path.to_path_buf();
         let (tx, rx) = std::sync::mpsc::channel();
         self.scan_rx = Some(rx);
-        self.is_scanning = true;
         self.scan_progress = Some((0, path.display().to_string()));
+
+        if let Some(cached) = cache::load(path) {
+            // Có cache: load ngay, scan âm thầm
+            self.entries = cached;
+            self.is_scanning = false;
+            self.is_silent_scanning = true;
+        } else {
+            // Chưa có cache: cần spinner
+            self.is_scanning = true;
+            self.is_silent_scanning = false;
+        }
+
         scanner::scan_directory_async(path.to_path_buf(), tx);
     }
 
@@ -259,8 +279,8 @@ impl CleanupState {
     }
 
     pub fn check_background_tasks(&mut self, ctx: &egui::Context, _scan_path: &Path, lang: &Lang) {
-        // Poll scan bất đồng bộ
-        if self.is_scanning {
+        // Poll scan bất đồng bộ (cả spinner lẫn silent)
+        if self.is_scanning || self.is_silent_scanning {
             if let Some(ref rx) = self.scan_rx {
                 let mut got_update = false;
                 loop {
@@ -273,26 +293,41 @@ impl CleanupState {
                                 Some((scanned, current_path.display().to_string()));
                             got_update = true;
                         }
-                        Ok(ScanEvent::Done(mut entries)) => {
-                            // Áp dụng sort trên kết quả nhận được
-                            for e in &mut entries {
+                        Ok(ScanEvent::Done(mut new_entries)) => {
+                            // Áp dụng sort
+                            for e in &mut new_entries {
                                 e.sort_recursive(self.sort_state);
                             }
-                            entries.sort_by(|a, b| {
+                            new_entries.sort_by(|a, b| {
                                 b.is_dir
                                     .cmp(&a.is_dir)
                                     .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
                             });
-                            self.entries = entries;
+
+                            // So sánh fingerprint với entries hiện tại
+                            let new_fp = cache::fingerprint(&new_entries);
+                            let old_fp = cache::fingerprint(&self.entries);
+                            let changed = new_fp != old_fp;
+
+                            // Luôn ghi cache mới
+                            cache::save(&self.current_scan_path, &new_entries);
+
+                            if changed || self.is_scanning {
+                                // Khác cache hoặc lần đuầu (không có cache trước) — cập nhật UI
+                                self.entries = new_entries;
+                                self.status_message = Some(lang.msg_rescanned.to_string());
+                            }
+
                             self.is_scanning = false;
+                            self.is_silent_scanning = false;
                             self.scan_rx = None;
                             self.scan_progress = None;
-                            self.status_message = Some(lang.msg_rescanned.to_string());
                             got_update = true;
                             break;
                         }
                         Ok(ScanEvent::Error(e)) => {
                             self.is_scanning = false;
+                            self.is_silent_scanning = false;
                             self.scan_rx = None;
                             self.scan_progress = None;
                             self.status_message = Some(format!("Lỗi scan: {}", e));
@@ -468,6 +503,18 @@ pub fn render_cleanup(
                             .color(colors::status_warning(ui.visuals().dark_mode))
                             .small(),
                     );
+                }
+
+                // Silent scan indicator — hiển thị nhỏ, không gây phiền
+                if state.is_silent_scanning {
+                    ui.separator();
+                    ui.add(egui::Spinner::new().size(10.0));
+                    ui.label(
+                        egui::RichText::new("Đang cập nhật...")
+                            .small()
+                            .color(colors::text_muted(ui.visuals().dark_mode)),
+                    );
+                    ctx.request_repaint();
                 }
             });
         });

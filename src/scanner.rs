@@ -4,11 +4,19 @@ use std::sync::mpsc;
 
 use rayon::prelude::*;
 
+use crate::cache;
 use crate::file_info::{FileEntry, FileEntryParams};
 
 /// Độ sâu tối đa khi scan thư mục (tính từ root = 1).
 /// Tăng lên nếu muốn scan sâu hơn, giảm xuống nếu muốn nhanh hơn.
 pub const MAX_SCAN_DEPTH: usize = 6;
+
+/// Kiểm tra xem một path có nên bị bỏ qua khi scan không.
+/// Hiện tại bỏ qua thư mục cache của app để tránh đệ quy vào chính mình.
+#[inline]
+fn is_excluded(path: &Path) -> bool {
+    path == cache::cache_dir()
+}
 
 /// Event gửi từ background scan thread về UI thread
 pub enum ScanEvent {
@@ -33,6 +41,7 @@ fn scan_sequential(path: &Path, depth: usize) -> Vec<FileEntry> {
 
     let mut entries: Vec<FileEntry> = read_dir
         .filter_map(|e| e.ok())
+        .filter(|entry| !is_excluded(&entry.path())) // bỏ qua thư mục bị loại trừ
         .filter_map(|entry| {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
@@ -90,6 +99,7 @@ pub fn scan_directory_parallel(path: &Path) -> Vec<FileEntry> {
     // Children bên trong gọi scan_sequential — không đệ quy trên rayon → hết stack overflow
     let mut entries: Vec<FileEntry> = raw
         .into_par_iter()
+        .filter(|entry| !is_excluded(&entry.path())) // bỏ qua thư mục bị loại trừ
         .filter_map(|entry| {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();

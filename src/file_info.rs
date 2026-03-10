@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SortCriteria {
     Name,
     Created,
@@ -9,20 +11,20 @@ pub enum SortCriteria {
     Size,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SortDirection {
     Asc,
     Desc,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SortState {
     pub criteria: SortCriteria,
     pub direction: SortDirection,
 }
 
 /// Phân loại file theo extension
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FileCategory {
     Document,
     Image,
@@ -102,7 +104,7 @@ pub fn get_category_from_extension(ext: &str) -> FileCategory {
 }
 
 /// Cấu trúc lưu thông tin một file hoặc thư mục
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
     pub name: String,
     pub path: PathBuf,
