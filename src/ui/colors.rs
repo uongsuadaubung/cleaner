@@ -30,6 +30,9 @@ pub fn text_sidebar(is_dark: bool) -> Color32 {
 pub fn text_sidebar_hover(is_dark: bool) -> Color32 {
     if is_dark { Color32::from_rgb(220, 230, 240) } else { Color32::BLACK }
 }
+pub fn text_on_accent(_is_dark: bool) -> Color32 {
+    Color32::WHITE
+}
 
 // ─── STATUS ──────────────────────────────────────────────────
 pub fn status_success(is_dark: bool) -> Color32 {
@@ -62,5 +65,13 @@ pub fn sidebar_active_bg(is_dark: bool) -> Color32 {
 }
 pub fn sidebar_hover_bg(is_dark: bool) -> Color32 {
     if is_dark { Color32::from_rgb(45, 55, 65) } else { Color32::from_rgb(245, 245, 245) }
+}
+
+// ── MISC ─────────────────────────────────────────────────────
+pub fn transparent() -> Color32 {
+    Color32::TRANSPARENT
+}
+pub fn hover_overlay(_is_dark: bool) -> Color32 {
+    Color32::from_white_alpha(15)
 }
 

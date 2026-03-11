@@ -60,13 +60,6 @@ impl Default for CleanupState {
 }
 
 impl CleanupState {
-    pub fn new(entries: Vec<FileEntry>) -> Self {
-        Self {
-            entries,
-            ..Default::default()
-        }
-    }
-
     /// Bắt đầu scan bất đồng bộ.
     /// - Nếu có cache: load ngay lập tức, scan âm thầm để kiểm tra thay đổi.
     /// - Nếu chưa có cache: hiển thị spinner cho đến khi xong.

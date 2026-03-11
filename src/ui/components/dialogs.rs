@@ -127,7 +127,7 @@ fn render_confirm_delete(
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(lang.dialog_btn_delete).color(egui::Color32::WHITE),
+                                egui::RichText::new(lang.dialog_btn_delete).color(colors::text_on_accent(ui.visuals().dark_mode)),
                             )
                             .fill(colors::status_error_bg(ui.visuals().dark_mode))
                             .min_size(theme::dialog_btn_size(t.dialog_btn_width)),
@@ -198,7 +198,7 @@ fn render_confirm_sort(ctx: &egui::Context, lang: &Lang, t: &theme::Theme) -> Di
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(lang.dialog_btn_sort).color(egui::Color32::WHITE),
+                                egui::RichText::new(lang.dialog_btn_sort).color(colors::text_on_accent(ui.visuals().dark_mode)),
                             )
                             .fill(colors::status_success_bg(ui.visuals().dark_mode))
                             .min_size(theme::dialog_btn_size(t.dialog_btn_width)),

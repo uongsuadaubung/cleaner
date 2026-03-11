@@ -152,7 +152,7 @@ pub fn render_toolbar(
                                 .fill(if is_sel {
                                     colors::accent_subtle(is_dark)
                                 } else {
-                                    egui::Color32::TRANSPARENT
+                                    colors::transparent()
                                 })
                                 .stroke(egui::Stroke::new(
                                     if is_sel { 1.5 } else { 0.0 },
@@ -195,7 +195,7 @@ pub fn render_toolbar(
                                 .fill(if is_sel {
                                     colors::accent_subtle(is_dark)
                                 } else {
-                                    egui::Color32::TRANSPARENT
+                                    colors::transparent()
                                 })
                                 .stroke(egui::Stroke::new(
                                     if is_sel { 1.5 } else { 0.0 },

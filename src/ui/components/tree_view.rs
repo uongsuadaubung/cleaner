@@ -236,7 +236,7 @@ fn render_entry(
 
     if ui.rect_contains_pointer(rect.shrink2(egui::vec2(0.0, 0.5))) {
         ui.painter()
-            .rect_filled(rect, 0.0, egui::Color32::from_white_alpha(15));
+            .rect_filled(rect, 0.0, colors::hover_overlay(ui.visuals().dark_mode));
     }
 
     if response.double_clicked() {

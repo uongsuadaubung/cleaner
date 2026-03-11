@@ -44,10 +44,10 @@ pub fn render_sidebar(ui: &mut egui::Ui, current_page: &mut ActivePage, lang: &L
                 } else if response.hovered() {
                     colors::sidebar_hover_bg(ui.visuals().dark_mode)
                 } else {
-                    egui::Color32::TRANSPARENT
+                    colors::transparent()
                 };
 
-                if bg_color != egui::Color32::TRANSPARENT {
+                if bg_color != colors::transparent() {
                     ui.painter().rect_filled(rect, theme::corner_radius(t.radius_sm), bg_color);
                 }
 
