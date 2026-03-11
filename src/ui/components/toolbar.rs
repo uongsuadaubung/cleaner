@@ -59,6 +59,7 @@ pub enum ToolbarAction {
     Sort,
     SelectOld { days: u64, scope: OldFileScope },
     Delete,
+    DeletePermanent,
     DeselectAll,
 }
 
@@ -288,6 +289,23 @@ pub fn render_toolbar(
                 .clicked()
             {
                 action = ToolbarAction::Delete;
+            }
+
+            // Nút xóa vĩnh viễn
+            let delete_perm_label = format!("{} ({})", lang.dialog_btn_delete_permanent, selected_count);
+            if ui
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new(delete_perm_label)
+                            .color(colors::status_danger(is_dark))
+                            .strong(),
+                    )
+                    .fill(colors::status_error_bg(is_dark))
+                    .min_size(theme::btn_size(t.btn_width_lg)),
+                )
+                .clicked()
+            {
+                action = ToolbarAction::DeletePermanent;
             }
         }
     });

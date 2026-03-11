@@ -188,6 +188,18 @@ impl CleanupState {
                     self.dialog_state = DialogState::ConfirmDelete {
                         file_count: count,
                         total_size: size,
+                        permanent: false,
+                    };
+                }
+            }
+            ToolbarAction::DeletePermanent => {
+                let count = count_selected_in_entries(&self.entries);
+                let size = selected_size_in_entries(&self.entries);
+                if count > 0 {
+                    self.dialog_state = DialogState::ConfirmDelete {
+                        file_count: count,
+                        total_size: size,
+                        permanent: true,
                     };
                 }
             }
@@ -202,11 +214,12 @@ impl CleanupState {
         match result {
             DialogResult::None => {}
             DialogResult::Confirmed => match &self.dialog_state {
-                DialogState::ConfirmDelete { .. } => {
+                DialogState::ConfirmDelete { permanent, .. } => {
                     let (progress_tx, progress_rx) = std::sync::mpsc::channel();
                     let (result_tx, result_rx) = std::sync::mpsc::channel();
 
                     let entries_clone = self.entries.clone();
+                    let is_permanent = *permanent;
 
                     self.dialog_state = DialogState::Processing {
                         title: lang.msg_deleting_title.to_string(),
@@ -220,7 +233,7 @@ impl CleanupState {
 
                     std::thread::spawn(move || {
                         let result =
-                            cleaner::delete_selected_files(&entries_clone, Some(progress_tx));
+                            cleaner::delete_selected_files(&entries_clone, is_permanent, Some(progress_tx));
                         let _ = result_tx.send(result);
                     });
                 }

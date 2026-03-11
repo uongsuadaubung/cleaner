@@ -74,9 +74,10 @@ pub fn select_old_files_shallow(entries: &mut [FileEntry], days: u64, exclude_li
     }
 }
 
-/// Xóa các file đã chọn (chuyển vào Recycle Bin)
+/// Xóa các file đã chọn (vào Recycle Bin hoặc xóa vĩnh viễn)
 pub fn delete_selected_files(
     entries: &[FileEntry],
+    permanent: bool,
     progress_tx: Option<std::sync::mpsc::Sender<(usize, usize, String)>>,
 ) -> CleanResult {
     let mut result = CleanResult {
@@ -84,52 +85,98 @@ pub fn delete_selected_files(
         failed: Vec::new(),
     };
 
-    let selected_paths = collect_selected_paths(entries);
-    let total = selected_paths.len();
+    let selected_items = collect_selected_paths(entries);
+    let total_files: usize = selected_items.iter().map(|(_, count)| count).sum();
+    let mut current_files = 0;
 
-    // Chia nhỏ thành các batch (ví dụ 50 file một lần) để cân bằng giữa tốc độ (Windows Shell) và tiến độ UI
-    let chunk_size = 50;
-    for (chunk_idx, chunk) in selected_paths.chunks(chunk_size).enumerate() {
-        let current_count = (chunk_idx * chunk_size + chunk.len()).min(total);
+    // Nếu xóa vĩnh viễn, ta xóa từng file/thư mục thay vì đưa vào thùng rác
+    if permanent {
+        for (path, count) in selected_items {
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.display().to_string());
 
-        let file_name = chunk[0]
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| chunk[0].display().to_string());
-
-        // Gửi progress trước khi xóa batch
-        if let Some(ref tx) = progress_tx {
-            let _ = tx.send((
-                current_count,
-                total,
-                format!("Đang xóa nhóm chứa: {}", file_name),
-            ));
-        }
-
-        match trash::delete_all(chunk) {
-            Ok(()) => result.deleted += chunk.len(),
-            Err(e) => {
-                result.failed.push((
-                    format!("Nhóm số {}", chunk_idx + 1),
-                    format!("Lỗi xóa hàng loạt: {}", e),
+            if let Some(ref tx) = progress_tx {
+                let _ = tx.send((
+                    current_files,
+                    total_files,
+                    format!("Đang xóa vĩnh viễn: {}", file_name),
                 ));
             }
+
+            if path.is_dir() {
+                if let Err(e) = std::fs::remove_dir_all(&path) {
+                    result.failed.push((file_name, format!("Lỗi xóa thư mục: {}", e)));
+                } else {
+                    result.deleted += count;
+                }
+            } else {
+                if let Err(e) = std::fs::remove_file(&path) {
+                    result.failed.push((file_name, format!("Lỗi xóa file: {}", e)));
+                } else {
+                    result.deleted += count;
+                }
+            }
+            
+            current_files += count;
         }
+    } else {
+        // Chia nhỏ thành các batch (ví dụ 50 file một lần)
+        let chunk_size = 50;
+        for (chunk_idx, chunk) in selected_items.chunks(chunk_size).enumerate() {
+            let paths: Vec<PathBuf> = chunk.iter().map(|(p, _)| p.clone()).collect();
+            let chunk_files: usize = chunk.iter().map(|(_, c)| c).sum();
+
+            let file_name = paths[0]
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| paths[0].display().to_string());
+
+            // Gửi progress trước khi xóa batch
+            if let Some(ref tx) = progress_tx {
+                let _ = tx.send((
+                    current_files,
+                    total_files,
+                    format!("Đang xóa nhóm chứa: {}", file_name),
+                ));
+            }
+
+            match trash::delete_all(&paths) {
+                Ok(()) => result.deleted += chunk_files,
+                Err(e) => {
+                    result.failed.push((
+                        format!("Nhóm số {}", chunk_idx + 1),
+                        format!("Lỗi xóa hàng loạt: {}", e),
+                    ));
+                }
+            }
+            
+            current_files += chunk_files;
+        }
+    }
+    
+    // Đảm bảo gửi tiến trình cuối cùng là hoàn thành
+    if let Some(ref tx) = progress_tx {
+        let _ = tx.send((
+            total_files,
+            total_files,
+            "Hoàn tất!".to_string(),
+        ));
     }
 
     result
 }
 
-/// Thu thập đường dẫn các item đã chọn (file hoặc thư mục)
-fn collect_selected_paths(entries: &[FileEntry]) -> Vec<PathBuf> {
+/// Thu thập đường dẫn các item đã chọn kèm theo số lượng file con của nó
+fn collect_selected_paths(entries: &[FileEntry]) -> Vec<(PathBuf, usize)> {
     let mut paths = Vec::new();
     for entry in entries {
         if entry.selected {
-            // Nếu item được chọn (có thể là file hoặc thư mục), ta lấy chính nó.
-            // Với thư mục, việc xóa nó sẽ bao gồm cả việc xóa các con bên trong.
-            paths.push(entry.path.clone());
+            // Nếu item được chọn, lấy nó và đếm số lượng file thực tế của nó
+            paths.push((entry.path.clone(), entry.count_selected()));
         } else if entry.is_dir {
-            // Nếu thư mục không được chọn, ta duyệt tiếp các con của nó.
+            // Nếu không, tiếp tục duyệt nhánh con
             paths.extend(collect_selected_paths(&entry.children));
         }
     }

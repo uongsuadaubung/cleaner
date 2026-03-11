@@ -12,6 +12,7 @@ pub enum DialogState {
     ConfirmDelete {
         file_count: usize,
         total_size: u64,
+        permanent: bool,
     },
     ConfirmSort,
     ResultMessage {
@@ -41,8 +42,8 @@ pub fn render_dialog(ctx: &egui::Context, state: &DialogState, lang: &Lang) -> D
     let t = &theme::DEFAULT;
     match state {
         DialogState::None => DialogResult::None,
-        DialogState::ConfirmDelete { file_count, total_size } => {
-            render_confirm_delete(ctx, *file_count, *total_size, lang, t)
+        DialogState::ConfirmDelete { file_count, total_size, permanent } => {
+            render_confirm_delete(ctx, *file_count, *total_size, *permanent, lang, t)
         }
         DialogState::ConfirmSort => render_confirm_sort(ctx, lang, t),
         DialogState::ResultMessage { title, message, is_error } => {
@@ -94,12 +95,19 @@ fn render_confirm_delete(
     ctx: &egui::Context,
     file_count: usize,
     total_size: u64,
+    permanent: bool,
     lang: &Lang,
     t: &theme::Theme,
 ) -> DialogResult {
     let mut result = DialogResult::None;
 
-    egui::Window::new(lang.dialog_confirm_delete_title)
+    let window_title = if permanent {
+        format!("‼ {}", lang.dialog_confirm_delete_title)
+    } else {
+        lang.dialog_confirm_delete_title.to_string()
+    };
+
+    egui::Window::new(window_title)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
@@ -107,16 +115,31 @@ fn render_confirm_delete(
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(t.space_md + 2.0);
-                ui.label(egui::RichText::new(lang.dialog_confirm_delete_msg).size(t.font_md));
+                let msg = if permanent {
+                    lang.dialog_confirm_permanent_delete_msg
+                } else {
+                    lang.dialog_confirm_delete_msg
+                };
+                ui.label(egui::RichText::new(msg).size(t.font_md));
                 ui.add_space(t.space_md);
                 ui.label(format!("{} {}", lang.dialog_file_count, file_count));
                 ui.label(format!("{} {}", lang.dialog_total_size, format_size(total_size)));
                 ui.add_space(t.space_sm + 1.0);
-                ui.label(
-                    egui::RichText::new(lang.dialog_recycle_note)
-                        .color(colors::status_success(ui.visuals().dark_mode))
-                        .small(),
-                );
+                
+                if permanent {
+                    ui.label(
+                        egui::RichText::new(lang.dialog_permanent_note)
+                            .color(colors::status_danger(ui.visuals().dark_mode))
+                            .strong()
+                            .small(),
+                    );
+                } else {
+                    ui.label(
+                        egui::RichText::new(lang.dialog_recycle_note)
+                            .color(colors::status_success(ui.visuals().dark_mode))
+                            .small(),
+                    );
+                }
                 ui.add_space(t.space_xl - 5.0);
 
                 ui.horizontal(|ui| {
@@ -124,10 +147,16 @@ fn render_confirm_delete(
                     let available = ui.available_width();
                     ui.add_space((available - (t.dialog_btn_width * 2.0 + t.dialog_btn_spacing)) / 2.0);
 
+                    let btn_label = if permanent {
+                        lang.dialog_btn_delete_permanent
+                    } else {
+                        lang.dialog_btn_delete
+                    };
+
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(lang.dialog_btn_delete).color(colors::text_on_accent(ui.visuals().dark_mode)),
+                                egui::RichText::new(btn_label).color(colors::text_on_accent(ui.visuals().dark_mode)),
                             )
                             .fill(colors::status_error_bg(ui.visuals().dark_mode))
                             .min_size(theme::dialog_btn_size(t.dialog_btn_width)),
