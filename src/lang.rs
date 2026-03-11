@@ -130,6 +130,8 @@ pub struct Lang {
     pub settings_theme_dark: &'static str,
     pub settings_theme_light: &'static str,
     pub settings_language: &'static str,
+    pub settings_exclude_list: &'static str,
+    pub settings_exclude_hint: &'static str,
 
     // ── Status messages ──────────────────────────────────────
     pub msg_rescanned: &'static str,
@@ -228,6 +230,8 @@ pub const VI: Lang = Lang {
     settings_theme_dark: "Tối",
     settings_theme_light: "Sáng",
     settings_language: "Ngôn ngữ",
+    settings_exclude_list: "Danh sách bỏ qua",
+    settings_exclude_hint: "Các file, thư mục, hoặc phần mở rộng sẽ không bị xóa (mỗi mục 1 dòng hoặc cách nhau dấu phẩy)",
 
     msg_rescanned: "Đã quét lại thư mục",
     msg_deselected_all: "Đã bỏ chọn tất cả",
@@ -325,6 +329,8 @@ pub const EN: Lang = Lang {
     settings_theme_dark: "Dark",
     settings_theme_light: "Light",
     settings_language: "Language",
+    settings_exclude_list: "Exclude list",
+    settings_exclude_hint: "Files, folders, or extensions that will never be deleted (one per line or comma-separated)",
 
     msg_rescanned: "Folder rescanned",
     msg_deselected_all: "All deselected",

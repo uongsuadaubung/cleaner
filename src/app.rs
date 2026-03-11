@@ -131,6 +131,7 @@ impl eframe::App for FolderCleanerApp {
                     ctx,
                     &mut self.cleanup_state,
                     &mut self.scan_path,
+                    &self.settings_state.exclude_list,
                     &lang,
                 );
             }

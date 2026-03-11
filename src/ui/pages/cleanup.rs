@@ -141,7 +141,7 @@ impl CleanupState {
         self.apply_sorting();
     }
 
-    pub fn handle_toolbar_action(&mut self, action: ToolbarAction, scan_path: &Path, lang: &Lang) {
+    pub fn handle_toolbar_action(&mut self, action: ToolbarAction, scan_path: &Path, exclude_list: &[String], lang: &Lang) {
         match action {
             ToolbarAction::None => {}
             ToolbarAction::Rescan => {
@@ -153,10 +153,10 @@ impl CleanupState {
             ToolbarAction::SelectOld { days, scope } => {
                 match scope {
                     OldFileScope::CurrentOnly => {
-                        cleaner::select_old_files_shallow(&mut self.entries, days);
+                        cleaner::select_old_files_shallow(&mut self.entries, days, exclude_list);
                     }
                     OldFileScope::Recursive => {
-                        cleaner::select_old_files(&mut self.entries, days);
+                        cleaner::select_old_files(&mut self.entries, days, exclude_list);
                     }
                 }
                 let count = count_selected_in_entries(&self.entries);
@@ -402,6 +402,7 @@ pub fn render_cleanup(
     ctx: &egui::Context,
     state: &mut CleanupState,
     scan_path: &mut PathBuf,
+    exclude_list: &[String],
     lang: &Lang,
 ) {
     let t = &theme::DEFAULT;
@@ -446,7 +447,7 @@ pub fn render_cleanup(
                 &mut state.show_period_selector,
                 lang,
             );
-            state.handle_toolbar_action(tb_action, scan_path, lang);
+            state.handle_toolbar_action(tb_action, scan_path, exclude_list, lang);
         });
     });
 

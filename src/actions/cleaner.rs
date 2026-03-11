@@ -9,11 +9,34 @@ pub struct CleanResult {
     pub failed: Vec<(String, String)>, // (tên file, lý do)
 }
 
+/// Kiểm tra xem tên có thuộc danh sách loại trừ không
+pub fn is_excluded_by_name(name: &str, exclude_list: &[String]) -> bool {
+    let lower_name = name.to_lowercase();
+    for pattern in exclude_list {
+        let p = pattern.to_lowercase();
+        if lower_name == p {
+            return true;
+        }
+        if p.starts_with('.') && lower_name.ends_with(&p) {
+            return true;
+        }
+        if p.starts_with("*.") && lower_name.ends_with(&p[1..]) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Chọn tất cả file cũ hơn N ngày (đánh dấu selected) - đệ quy toàn bộ cây
-pub fn select_old_files(entries: &mut [FileEntry], days: u64) {
+pub fn select_old_files(entries: &mut [FileEntry], days: u64, exclude_list: &[String]) {
     for entry in entries.iter_mut() {
+        if is_excluded_by_name(&entry.name, exclude_list) {
+            entry.set_selected_recursive(false);
+            continue;
+        }
+
         if entry.is_dir {
-            select_old_files(&mut entry.children, days);
+            select_old_files(&mut entry.children, days, exclude_list);
             // Nếu tất cả con đều được chọn thì chọn folder cha
             let all_selected =
                 !entry.children.is_empty() && entry.children.iter().all(|c| c.selected);
@@ -31,8 +54,13 @@ pub fn select_old_files(entries: &mut [FileEntry], days: u64) {
 }
 
 /// Chọn file cũ hơn N ngày - chỉ trong thư mục gốc (không vào thư mục con)
-pub fn select_old_files_shallow(entries: &mut [FileEntry], days: u64) {
+pub fn select_old_files_shallow(entries: &mut [FileEntry], days: u64, exclude_list: &[String]) {
     for entry in entries.iter_mut() {
+        if is_excluded_by_name(&entry.name, exclude_list) {
+            entry.selected = false;
+            continue;
+        }
+
         if entry.is_dir {
             // Không đệ quy, bỏ qua thư mục con hoàn toàn
             entry.selected = false;

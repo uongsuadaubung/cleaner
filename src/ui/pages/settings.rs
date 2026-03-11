@@ -33,13 +33,25 @@ impl ThemeSetting {
 pub struct SettingsState {
     pub theme: ThemeSetting,
     pub language: Language,
+    pub exclude_list: Vec<String>,
+    pub exclude_input: String,
 }
 
 impl Default for SettingsState {
     fn default() -> Self {
+        let exclude_list = vec![
+            ".git".to_string(),
+            "node_modules".to_string(),
+            "target".to_string(),
+            ".idea".to_string(),
+            ".vscode".to_string(),
+            ".bak".to_string(),
+        ];
         Self {
             theme: ThemeSetting::System,
             language: Language::Vietnamese,
+            exclude_input: exclude_list.join("\n"),
+            exclude_list,
         }
     }
 }
@@ -63,6 +75,15 @@ impl SettingsState {
                         match key {
                             "theme" => state.theme = ThemeSetting::from_str(value),
                             "language" => state.language = Language::from_str(value),
+                            "exclude_list" => {
+                                if !value.is_empty() {
+                                    state.exclude_list = value.split(',').map(|s| s.trim().to_string()).collect();
+                                    state.exclude_input = state.exclude_list.join("\n");
+                                } else {
+                                    state.exclude_list = Vec::new();
+                                    state.exclude_input = String::new();
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -81,9 +102,10 @@ impl SettingsState {
 
         if let Ok(mut file) = std::fs::File::create(&path) {
             let content = format!(
-                "theme={}\nlanguage={}\n",
+                "theme={}\nlanguage={}\nexclude_list={}\n",
                 self.theme.as_str(),
-                self.language.as_str()
+                self.language.as_str(),
+                self.exclude_list.join(",")
             );
             let _ = file.write_all(content.as_bytes());
         }
@@ -108,6 +130,7 @@ pub fn render_settings(
     let mut changed = false;
 
     ui.group(|ui| {
+        ui.set_width(ui.available_width());
         ui.label(
             egui::RichText::new(lang.settings_appearance)
                 .strong()
@@ -155,6 +178,7 @@ pub fn render_settings(
     ui.add_space(t.space_xl);
 
     ui.group(|ui| {
+        ui.set_width(ui.available_width());
         ui.label(
             egui::RichText::new(lang.settings_language)
                 .strong()
@@ -178,6 +202,40 @@ pub fn render_settings(
                 changed = true;
             }
         });
+    });
+
+    ui.add_space(t.space_xl);
+
+    ui.group(|ui| {
+        ui.set_width(ui.available_width());
+        ui.label(
+            egui::RichText::new(lang.settings_exclude_list)
+                .strong()
+                .size(t.font_md),
+        );
+        ui.add_space(t.space_xs);
+        ui.label(
+            egui::RichText::new(lang.settings_exclude_hint)
+                .color(colors::text_secondary(ui.visuals().dark_mode))
+                .size(t.font_sm),
+        );
+        ui.add_space(t.space_md);
+
+        let response = ui.add(
+            egui::TextEdit::multiline(&mut state.exclude_input)
+                .font(egui::TextStyle::Monospace)
+                .desired_rows(6)
+                .desired_width(f32::INFINITY),
+        );
+
+        if response.changed() {
+            state.exclude_list = state.exclude_input
+                .split(|c| c == '\n' || c == ',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            changed = true;
+        }
     });
 
     if changed {
